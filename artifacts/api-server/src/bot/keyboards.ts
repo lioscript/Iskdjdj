@@ -154,6 +154,6 @@ export function adminSettingsKb(lang: Lang): InlineKeyboard {
 
 export function adminOrderKb(orderId: number): InlineKeyboard {
   return new InlineKeyboard()
-    .text("◆  Approve", `ord:approve:${orderId}`)
-    .text("◇  Reject", `ord:reject:${orderId}`);
+    .text("✔  Approve", `ord:approve:${orderId}`)
+    .text("✖  Reject", `ord:reject:${orderId}`);
 }

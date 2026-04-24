@@ -18,7 +18,7 @@ import {
   type PaymentMethod,
   type PeriodId,
 } from "../catalog";
-import { isLang, t, type Lang } from "../i18n";
+import { isLang, LANGUAGE_PICKER_PROMPT, t, type Lang } from "../i18n";
 import {
   adminOrderKb,
   gamesKb,
@@ -72,9 +72,9 @@ async function showMain(ctx: Context): Promise<void> {
 }
 
 async function showLangPicker(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
-  const tr = t(lang);
-  await showMenuText(ctx, tr.pickLanguage, languagePickerKb());
+  // Make sure the user row exists, but always show the prompt in English.
+  getOrCreateUser(ctx);
+  await showMenuText(ctx, LANGUAGE_PICKER_PROMPT, languagePickerKb());
 }
 
 async function showGames(ctx: Context): Promise<void> {
@@ -209,10 +209,10 @@ export function registerUserHandlers(bot: Bot): void {
     clearState(ctx.chat.id);
     const existing = getUser(ctx.from?.id ?? 0);
     if (!existing) {
-      // First time — create user (default lang) and show language picker
+      // First time — create user (default lang) and show language picker.
+      // The prompt is always in English so any new user can read it.
       getOrCreateUser(ctx);
-      const tr = t(detectInitialLang(ctx));
-      await showMenuText(ctx, tr.pickLanguage, languagePickerKb());
+      await showMenuText(ctx, LANGUAGE_PICKER_PROMPT, languagePickerKb());
       return;
     }
     await showMain(ctx);
