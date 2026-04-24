@@ -32,6 +32,7 @@ async function buildAll() {
       "sharp",
       "better-sqlite3",
       "sqlite3",
+      "grammy",
       "canvas",
       "bcrypt",
       "argon2",
