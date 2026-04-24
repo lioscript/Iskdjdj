@@ -86,6 +86,24 @@ db.exec(`
   );
 `);
 
+// Lightweight migration: add Crypto Bot invoice tracking columns to
+// existing `orders` rows on already-deployed databases.
+{
+  const cols = db
+    .prepare("PRAGMA table_info(orders)")
+    .all() as Array<{ name: string }>;
+  const have = new Set(cols.map((c) => c.name));
+  if (!have.has("cryptobot_invoice_id")) {
+    db.exec("ALTER TABLE orders ADD COLUMN cryptobot_invoice_id TEXT");
+  }
+  if (!have.has("cryptobot_pay_url")) {
+    db.exec("ALTER TABLE orders ADD COLUMN cryptobot_pay_url TEXT");
+  }
+}
+db.exec(
+  "CREATE INDEX IF NOT EXISTS idx_orders_cryptobot ON orders(cryptobot_invoice_id) WHERE cryptobot_invoice_id IS NOT NULL",
+);
+
 // ---------- defaults ----------
 const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number }> = [
   { game: "pubg_bgmi", period: "day", amount_usd: 5 },
@@ -123,6 +141,10 @@ const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number
 const DEFAULT_SETTINGS: Record<string, string> = {
   crypto_wallet: "0x9c1b4e6d1bcba589be0cddd039d03b3644664551",
   upi_id: "your-upi@bank",
+  // Crypto Pay (https://t.me/CryptoBot) API token. Set via /adm or env.
+  cryptobot_token: process.env["CRYPTOBOT_TOKEN"] ?? "",
+  // Comma-separated list of crypto assets the user can pay with.
+  cryptobot_assets: "USDT,TON,BTC,ETH,BNB,TRX",
 };
 
 {
@@ -313,6 +335,8 @@ export type OrderRow = {
   delivered_key_id: number | null;
   created_at: number;
   decided_at: number | null;
+  cryptobot_invoice_id: string | null;
+  cryptobot_pay_url: string | null;
 };
 
 const insertOrderStmt = db.prepare(
@@ -324,6 +348,15 @@ const getOrderStmt = db.prepare<[number], OrderRow>(
 );
 const setOrderStatusStmt = db.prepare(
   "UPDATE orders SET status = ?, decided_at = ? WHERE id = ? AND status = 'pending'",
+);
+const setOrderCryptobotStmt = db.prepare(
+  "UPDATE orders SET cryptobot_invoice_id = ?, cryptobot_pay_url = ? WHERE id = ?",
+);
+const getOrderByInvoiceStmt = db.prepare<[string], OrderRow>(
+  "SELECT * FROM orders WHERE cryptobot_invoice_id = ?",
+);
+const listPendingCryptobotStmt = db.prepare<[], OrderRow>(
+  "SELECT * FROM orders WHERE payment_method = 'cryptobot' AND status = 'pending' AND cryptobot_invoice_id IS NOT NULL ORDER BY id ASC LIMIT 100",
 );
 
 export function createOrder(args: {
@@ -351,6 +384,24 @@ export function getOrder(id: number): OrderRow | undefined {
 export function rejectOrder(id: number): boolean {
   const info = setOrderStatusStmt.run("rejected", Date.now(), id);
   return info.changes > 0;
+}
+
+export function setOrderCryptobotInvoice(
+  orderId: number,
+  invoiceId: string,
+  payUrl: string,
+): void {
+  setOrderCryptobotStmt.run(invoiceId, payUrl, orderId);
+}
+
+export function getOrderByCryptobotInvoice(
+  invoiceId: string,
+): OrderRow | undefined {
+  return getOrderByInvoiceStmt.get(invoiceId) as OrderRow | undefined;
+}
+
+export function listPendingCryptobotOrders(): OrderRow[] {
+  return listPendingCryptobotStmt.all() as OrderRow[];
 }
 
 export function getStats(): { sales: number; revenue: number } {
@@ -386,4 +437,12 @@ export function getCryptoWallet(): string {
 
 export function getUpiId(): string {
   return getSetting("upi_id") || "";
+}
+
+export function getCryptoBotToken(): string {
+  return getSetting("cryptobot_token") || "";
+}
+
+export function getCryptoBotAssets(): string {
+  return getSetting("cryptobot_assets") || "USDT,TON";
 }

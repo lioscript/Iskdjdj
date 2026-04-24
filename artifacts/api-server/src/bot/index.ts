@@ -2,8 +2,46 @@ import { Bot, GrammyError, HttpError } from "grammy";
 import { logger } from "../lib/logger";
 import { registerUserHandlers } from "./handlers/user";
 import { registerAdminHandlers } from "./handlers/admin";
+import { listPendingCryptobotOrders } from "./db";
+import {
+  getInvoices as cbGetInvoices,
+  isConfigured as cbIsConfigured,
+} from "./cryptobot";
+import { deliverPaidOrder } from "./delivery";
 
 let botInstance: Bot | null = null;
+
+export function getBotInstance(): Bot | null {
+  return botInstance;
+}
+
+const POLL_INTERVAL_MS = 30_000;
+
+async function sweepCryptoBotPayments(bot: Bot): Promise<void> {
+  if (!cbIsConfigured()) return;
+  const pending = listPendingCryptobotOrders();
+  if (pending.length === 0) return;
+  const ids = pending
+    .map((o) => o.cryptobot_invoice_id)
+    .filter((x): x is string => Boolean(x));
+  try {
+    const invoices = await cbGetInvoices(ids);
+    const paidById = new Map(
+      invoices.filter((i) => i.status === "paid").map((i) => [String(i.invoice_id), i]),
+    );
+    for (const order of pending) {
+      if (!order.cryptobot_invoice_id) continue;
+      if (paidById.has(order.cryptobot_invoice_id)) {
+        const result = await deliverPaidOrder(bot, order.id);
+        if (result === "delivered") {
+          logger.info({ orderId: order.id }, "Crypto Pay order delivered (sweeper)");
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "Crypto Pay sweeper failed");
+  }
+}
 
 export async function startBot(): Promise<void> {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
@@ -55,6 +93,14 @@ export async function startBot(): Promise<void> {
         ),
     })
     .catch((err) => logger.error({ err }, "Bot polling stopped"));
+
+  // Periodic sweeper: catches any Crypto Pay payments that the webhook
+  // missed (or for setups where no webhook is configured at all).
+  setInterval(() => {
+    sweepCryptoBotPayments(bot).catch((err) =>
+      logger.warn({ err }, "Crypto Pay sweeper crashed"),
+    );
+  }, POLL_INTERVAL_MS).unref();
 
   // Graceful shutdown
   const shutdown = (signal: string) => {

@@ -9,7 +9,7 @@ export type GameId =
 
 export type PeriodId = "day" | "week" | "month";
 
-export type PaymentMethod = "crypto" | "remitly";
+export type PaymentMethod = "crypto" | "remitly" | "cryptobot";
 
 export const GAMES: { id: GameId; group: "pubg" | "other"; label: string }[] = [
   { id: "pubg_bgmi", group: "pubg", label: "PUBG Mobile — BGMI" },

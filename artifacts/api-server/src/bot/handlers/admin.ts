@@ -4,6 +4,8 @@ import {
   countAvailableKeys,
   countUsers,
   deleteKey,
+  getCryptoBotAssets,
+  getCryptoBotToken,
   getCryptoWallet,
   getOrder,
   getPrice,
@@ -72,7 +74,12 @@ async function showAdminSettings(ctx: Context): Promise<void> {
   const tr = t(lang);
   await showMenuText(
     ctx,
-    tr.adminSettingsBody(getCryptoWallet(), getUpiId()),
+    tr.adminSettingsBody(
+      getCryptoWallet(),
+      getUpiId(),
+      getCryptoBotToken(),
+      getCryptoBotAssets(),
+    ),
     adminSettingsKb(lang),
   );
 }
@@ -223,19 +230,24 @@ export function registerAdminHandlers(bot: Bot): void {
     await showAdminSettings(ctx);
   });
 
-  bot.callbackQuery(/^adm:set:(crypto|upi)$/, async (ctx) => {
+  bot.callbackQuery(/^adm:set:(crypto|upi|cbtoken|cbassets)$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
-    const which = ctx.match![1] as "crypto" | "upi";
+    const which = ctx.match![1] as "crypto" | "upi" | "cbtoken" | "cbassets";
     const lang = getLang(ctx);
     const tr = t(lang);
+    await ctx.answerCallbackQuery();
     if (which === "crypto") {
       setState(ctx.chat!.id, { kind: "await_crypto" });
-      await ctx.answerCallbackQuery();
       await showMenuText(ctx, tr.adminEnterCrypto, adminSettingsKb(lang));
-    } else {
+    } else if (which === "upi") {
       setState(ctx.chat!.id, { kind: "await_upi" });
-      await ctx.answerCallbackQuery();
       await showMenuText(ctx, tr.adminEnterUpi, adminSettingsKb(lang));
+    } else if (which === "cbtoken") {
+      setState(ctx.chat!.id, { kind: "await_cbtoken" });
+      await showMenuText(ctx, tr.adminEnterCryptoBotToken, adminSettingsKb(lang));
+    } else {
+      setState(ctx.chat!.id, { kind: "await_cbassets" });
+      await showMenuText(ctx, tr.adminEnterCryptoBotAssets, adminSettingsKb(lang));
     }
   });
 
@@ -440,6 +452,31 @@ export function registerAdminHandlers(bot: Bot): void {
       setSetting("upi_id", text.trim());
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminUpiUpdated, adminSettingsKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_cbtoken") {
+      const trimmed = text.trim();
+      const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
+      setSetting("cryptobot_token", value);
+      clearState(ctx.chat.id);
+      await showMenuText(ctx, tr.adminCryptoBotTokenUpdated, adminSettingsKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_cbassets") {
+      const cleaned = text
+        .split(/[,\s]+/)
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean)
+        .join(",");
+      if (!cleaned) {
+        await showMenuText(ctx, tr.adminInvalidNumber, adminSettingsKb(lang));
+        return;
+      }
+      setSetting("cryptobot_assets", cleaned);
+      clearState(ctx.chat.id);
+      await showMenuText(ctx, tr.adminCryptoBotAssetsUpdated, adminSettingsKb(lang));
       return;
     }
   });

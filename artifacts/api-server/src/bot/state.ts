@@ -7,7 +7,9 @@ export type AdminState =
   | { kind: "await_price"; game: GameId; period: PeriodId }
   | { kind: "await_keys"; game: GameId; period: PeriodId }
   | { kind: "await_crypto" }
-  | { kind: "await_upi" };
+  | { kind: "await_upi" }
+  | { kind: "await_cbtoken" }
+  | { kind: "await_cbassets" };
 
 const states = new Map<number, AdminState>();
 

@@ -39,6 +39,13 @@ type Dict = {
   cryptoBody: (addr: string, amount: string) => string;
   remitlyTitle: string;
   remitlyBody: (upi: string, amount: string) => string;
+  cryptoBotTitle: string;
+  cryptoBotBody: (amount: string, assets: string) => string;
+  cryptoBotPayBtn: string;
+  cryptoBotCheckBtn: string;
+  cryptoBotNotConfigured: string;
+  cryptoBotNotPaidYet: string;
+  cryptoBotPaymentFailed: string;
   paidButton: string;
   cancelButton: string;
   paymentSubmitted: string;
@@ -46,7 +53,7 @@ type Dict = {
   outOfStock: string;
   yourKey: (game: string, period: string, value: string) => string;
   game: Record<GameId, string>;
-  paymentLabel: Record<"crypto" | "remitly", string>;
+  paymentLabel: Record<"crypto" | "remitly" | "cryptobot", string>;
   // Admin
   adminOnly: string;
   adminPanel: string;
@@ -70,13 +77,24 @@ type Dict = {
   adminPickGameForView: string;
   adminPickPeriodForView: (game: string) => string;
   adminKeyDeleted: string;
-  adminSettingsBody: (wallet: string, upi: string) => string;
+  adminSettingsBody: (
+    wallet: string,
+    upi: string,
+    cryptoBotToken: string,
+    cryptoBotAssets: string,
+  ) => string;
   adminEnterCrypto: string;
   adminEnterUpi: string;
+  adminEnterCryptoBotToken: string;
+  adminEnterCryptoBotAssets: string;
   adminCryptoUpdated: string;
   adminUpiUpdated: string;
+  adminCryptoBotTokenUpdated: string;
+  adminCryptoBotAssetsUpdated: string;
   adminBtnSetCrypto: string;
   adminBtnSetUpi: string;
+  adminBtnSetCryptoBotToken: string;
+  adminBtnSetCryptoBotAssets: string;
   adminInvalidNumber: string;
   adminCancelled: string;
   // Order admin notification
@@ -136,6 +154,17 @@ const en: Dict = {
   remitlyTitle: "💸  Remitly payment",
   remitlyBody: (upi, amount) =>
     `Send *${amount}* via Remitly to:\n\n\`${upi}\`\n\n👆  Tap to copy. After paying, press “⚡  I have paid”.`,
+  cryptoBotTitle: "🤖  Pay with @CryptoBot",
+  cryptoBotBody: (amount, assets) =>
+    `Total: *${amount}*\n\nTap *Pay* below — @CryptoBot will open in Telegram and let you pay in any of: ${assets}.\n\nAs soon as the payment is confirmed, your key is delivered here automatically.`,
+  cryptoBotPayBtn: "💳  Pay with CryptoBot",
+  cryptoBotCheckBtn: "🔄  I have paid — check now",
+  cryptoBotNotConfigured:
+    "⚠  Crypto Bot payments are not configured yet. Please choose another method or contact support.",
+  cryptoBotNotPaidYet:
+    "⏳  Payment not received yet. After paying in @CryptoBot, tap “🔄  Check now” again.",
+  cryptoBotPaymentFailed:
+    "⚠  Could not create the invoice. Please try again or choose another payment method.",
   paidButton: "⚡  I have paid",
   cancelButton: "✖  Cancel",
   paymentSubmitted:
@@ -146,7 +175,11 @@ const en: Dict = {
   yourKey: (game, period, value) =>
     `🎉  *Order delivered!*\n\n🎮  Game: ${game}\n⏳  Period: ${period}\n\n🔑  Your key:\n\n\`${value}\`\n\n👆  Tap to copy.\n\n💎  Thank you for your purchase!`,
   game: GAME_LABELS,
-  paymentLabel: { crypto: "💰  Crypto BEP20", remitly: "💸  Remitly" },
+  paymentLabel: {
+    crypto: "💰  Crypto BEP20",
+    remitly: "💸  Remitly",
+    cryptobot: "🤖  CryptoBot (Telegram)",
+  },
   adminOnly: "🔒  This area is restricted.",
   adminPanel: "🛠  *Admin panel*",
   adminStats: "📊  Statistics",
@@ -174,14 +207,22 @@ const en: Dict = {
   adminPickGameForView: "Pick a game to view keys",
   adminPickPeriodForView: (game) => `${game}\n\nPick a period`,
   adminKeyDeleted: "Key removed.",
-  adminSettingsBody: (wallet, upi) =>
-    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\``,
+  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
+    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\``,
   adminEnterCrypto: "Send the new BEP20 wallet address. Send /cancel to abort.",
   adminEnterUpi: "Send the new UPI ID. Send /cancel to abort.",
+  adminEnterCryptoBotToken:
+    "Send the Crypto Pay API token (get it from @CryptoBot → Crypto Pay → Create App). Send `clear` to remove it. Send /cancel to abort.",
+  adminEnterCryptoBotAssets:
+    "Send a comma-separated list of accepted assets (e.g. `USDT,TON,BTC,ETH`). Send /cancel to abort.",
   adminCryptoUpdated: "Crypto wallet updated.",
   adminUpiUpdated: "UPI updated.",
+  adminCryptoBotTokenUpdated: "Crypto Bot token updated.",
+  adminCryptoBotAssetsUpdated: "Crypto Bot assets updated.",
   adminBtnSetCrypto: "💰  Set crypto wallet",
   adminBtnSetUpi: "💸  Set UPI",
+  adminBtnSetCryptoBotToken: "🤖  Set Crypto Bot token",
+  adminBtnSetCryptoBotAssets: "🪙  Set Crypto Bot assets",
   adminInvalidNumber: "Please send a valid positive number.",
   adminCancelled: "Cancelled.",
   adminOrderTitle: "🔔  *New payment claim*",
@@ -224,6 +265,17 @@ const ru: Dict = {
   remitlyTitle: "💸  Оплата через Remitly",
   remitlyBody: (upi, amount) =>
     `Отправьте *${amount}* через Remitly на:\n\n\`${upi}\`\n\n👆  Нажмите, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
+  cryptoBotTitle: "🤖  Оплата через @CryptoBot",
+  cryptoBotBody: (amount, assets) =>
+    `Сумма: *${amount}*\n\nНажмите *Оплатить* — откроется @CryptoBot в Telegram, где вы сможете оплатить любым из: ${assets}.\n\nКак только оплата подтвердится — ключ придёт сюда автоматически.`,
+  cryptoBotPayBtn: "💳  Оплатить через CryptoBot",
+  cryptoBotCheckBtn: "🔄  Я оплатил — проверить",
+  cryptoBotNotConfigured:
+    "⚠  Оплата через Crypto Bot пока не настроена. Выберите другой способ или напишите в поддержку.",
+  cryptoBotNotPaidYet:
+    "⏳  Оплата ещё не получена. Оплатите в @CryptoBot и нажмите «🔄  Проверить» снова.",
+  cryptoBotPaymentFailed:
+    "⚠  Не удалось создать счёт. Попробуйте ещё раз или выберите другой способ оплаты.",
   paidButton: "⚡  Я оплатил",
   cancelButton: "✖  Отмена",
   paymentSubmitted:
@@ -235,7 +287,11 @@ const ru: Dict = {
   yourKey: (game, period, value) =>
     `🎉  *Заказ выдан!*\n\n🎮  Игра: ${game}\n⏳  Период: ${period}\n\n🔑  Ваш ключ:\n\n\`${value}\`\n\n👆  Нажмите, чтобы скопировать.\n\n💎  Спасибо за покупку!`,
   game: GAME_LABELS,
-  paymentLabel: { crypto: "💰  Crypto BEP20", remitly: "💸  Remitly" },
+  paymentLabel: {
+    crypto: "💰  Crypto BEP20",
+    remitly: "💸  Remitly",
+    cryptobot: "🤖  CryptoBot (Telegram)",
+  },
   adminOnly: "🔒  Эта область только для администраторов.",
   adminPanel: "🛠  *Админ-панель*",
   adminStats: "📊  Статистика",
@@ -263,14 +319,22 @@ const ru: Dict = {
   adminPickGameForView: "Выберите игру для просмотра ключей",
   adminPickPeriodForView: (game) => `${game}\n\nВыберите период`,
   adminKeyDeleted: "Ключ удалён.",
-  adminSettingsBody: (wallet, upi) =>
-    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\``,
+  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
+    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\``,
   adminEnterCrypto: "Отправьте новый BEP20 адрес. /cancel — отменить.",
   adminEnterUpi: "Отправьте новый UPI ID. /cancel — отменить.",
+  adminEnterCryptoBotToken:
+    "Отправьте Crypto Pay API токен (получите в @CryptoBot → Crypto Pay → Create App). Отправьте `clear`, чтобы удалить токен. /cancel — отменить.",
+  adminEnterCryptoBotAssets:
+    "Отправьте список активов через запятую (например `USDT,TON,BTC,ETH`). /cancel — отменить.",
   adminCryptoUpdated: "Крипто-кошелёк обновлён.",
   adminUpiUpdated: "UPI обновлён.",
+  adminCryptoBotTokenUpdated: "Токен Crypto Bot обновлён.",
+  adminCryptoBotAssetsUpdated: "Активы Crypto Bot обновлены.",
   adminBtnSetCrypto: "💰  Сменить крипто-кошелёк",
   adminBtnSetUpi: "💸  Сменить UPI",
+  adminBtnSetCryptoBotToken: "🤖  Токен Crypto Bot",
+  adminBtnSetCryptoBotAssets: "🪙  Активы Crypto Bot",
   adminInvalidNumber: "Введите корректное положительное число.",
   adminCancelled: "Отменено.",
   adminOrderTitle: "🔔  *Новая заявка на оплату*",
@@ -313,6 +377,17 @@ const hi: Dict = {
   remitlyTitle: "💸  Remitly भुगतान",
   remitlyBody: (upi, amount) =>
     `Remitly से *${amount}* इस पते पर भेजें:\n\n\`${upi}\`\n\n👆  कॉपी करने के लिए टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
+  cryptoBotTitle: "🤖  @CryptoBot से भुगतान",
+  cryptoBotBody: (amount, assets) =>
+    `कुल: *${amount}*\n\nनीचे *Pay* दबाएँ — Telegram में @CryptoBot खुलेगा और आप इनमें से किसी से भी भुगतान कर सकते हैं: ${assets}.\n\nभुगतान कन्फ़र्म होते ही आपकी की यहाँ अपने आप आ जाएगी।`,
+  cryptoBotPayBtn: "💳  CryptoBot से भुगतान",
+  cryptoBotCheckBtn: "🔄  मैंने भुगतान किया — चेक करें",
+  cryptoBotNotConfigured:
+    "⚠  Crypto Bot भुगतान अभी सेट नहीं है। कृपया दूसरा तरीका चुनें या सहायता से संपर्क करें।",
+  cryptoBotNotPaidYet:
+    "⏳  भुगतान अभी प्राप्त नहीं हुआ। @CryptoBot में भुगतान के बाद “🔄  चेक करें” फिर दबाएँ।",
+  cryptoBotPaymentFailed:
+    "⚠  इनवॉइस नहीं बना सका। कृपया दोबारा कोशिश करें या दूसरा तरीका चुनें।",
   paidButton: "⚡  मैंने भुगतान किया",
   cancelButton: "✖  रद्द करें",
   paymentSubmitted:
@@ -324,7 +399,11 @@ const hi: Dict = {
   yourKey: (game, period, value) =>
     `🎉  *आपका ऑर्डर पूरा हुआ!*\n\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n\n🔑  आपकी की:\n\n\`${value}\`\n\n👆  कॉपी करने के लिए टैप करें।\n\n💎  खरीद के लिए धन्यवाद!`,
   game: GAME_LABELS,
-  paymentLabel: { crypto: "💰  Crypto BEP20", remitly: "💸  Remitly" },
+  paymentLabel: {
+    crypto: "💰  Crypto BEP20",
+    remitly: "💸  Remitly",
+    cryptobot: "🤖  CryptoBot (Telegram)",
+  },
   adminOnly: "🔒  यह क्षेत्र केवल एडमिन के लिए है।",
   adminPanel: "🛠  *एडमिन पैनल*",
   adminStats: "📊  आँकड़े",
@@ -352,14 +431,22 @@ const hi: Dict = {
   adminPickGameForView: "कीज़ देखने के लिए गेम चुनें",
   adminPickPeriodForView: (game) => `${game}\n\nअवधि चुनें`,
   adminKeyDeleted: "की हटा दी गई।",
-  adminSettingsBody: (wallet, upi) =>
-    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\``,
+  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
+    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\``,
   adminEnterCrypto: "नया BEP20 वॉलेट पता भेजें। रद्द करने के लिए /cancel।",
   adminEnterUpi: "नया UPI ID भेजें। रद्द करने के लिए /cancel।",
+  adminEnterCryptoBotToken:
+    "Crypto Pay API टोकन भेजें (@CryptoBot → Crypto Pay → Create App से लें)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
+  adminEnterCryptoBotAssets:
+    "अल्पविराम से अलग सूची भेजें (जैसे `USDT,TON,BTC,ETH`)। रद्द करने के लिए /cancel।",
   adminCryptoUpdated: "क्रिप्टो वॉलेट अपडेट हुआ।",
   adminUpiUpdated: "UPI अपडेट हुआ।",
+  adminCryptoBotTokenUpdated: "Crypto Bot टोकन अपडेट हुआ।",
+  adminCryptoBotAssetsUpdated: "Crypto Bot एसेट्स अपडेट हुए।",
   adminBtnSetCrypto: "💰  क्रिप्टो वॉलेट सेट करें",
   adminBtnSetUpi: "💸  UPI सेट करें",
+  adminBtnSetCryptoBotToken: "🤖  Crypto Bot टोकन",
+  adminBtnSetCryptoBotAssets: "🪙  Crypto Bot एसेट्स",
   adminInvalidNumber: "कृपया वैध सकारात्मक संख्या भेजें।",
   adminCancelled: "रद्द किया गया।",
   adminOrderTitle: "🔔  *नई भुगतान दावा*",

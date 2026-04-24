@@ -2,12 +2,14 @@ import type { Bot, Context } from "grammy";
 import {
   countAvailableKeys,
   createOrder,
+  getCryptoBotAssets,
   getCryptoWallet,
   getOrder,
   getPrice,
   getUpiId,
   getUser,
   reserveKeyForOrder,
+  setOrderCryptobotInvoice,
   setUserLanguage,
   upsertUser,
 } from "../db";
@@ -25,10 +27,17 @@ import {
   languagePickerKb,
   mainMenuKb,
   payConfirmKb,
+  payCryptoBotKb,
   paymentsKb,
   periodsKb,
   pubgVariantsKb,
 } from "../keyboards";
+import {
+  createInvoice as cbCreateInvoice,
+  getInvoices as cbGetInvoices,
+  isConfigured as cbIsConfigured,
+} from "../cryptobot";
+import { deliverPaidOrder } from "../delivery";
 import { showMenuPhoto, showMenuText } from "../ui";
 import { clearState } from "../state";
 import { logger } from "../../lib/logger";
@@ -132,6 +141,14 @@ async function startPayment(
     await showMenuText(ctx, tr.outOfStock, mainMenuKb(lang));
     return;
   }
+
+  // Crypto Bot needs a configured token before we even create the order,
+  // otherwise the user gets a dangling pending row with no pay link.
+  if (method === "cryptobot" && !cbIsConfigured()) {
+    await showMenuText(ctx, tr.cryptoBotNotConfigured, paymentsKb(lang, game, period));
+    return;
+  }
+
   const orderId = createOrder({
     userTelegramId: from.id,
     game,
@@ -139,15 +156,81 @@ async function startPayment(
     paymentMethod: method,
     amountUsd: price,
   });
+
   if (method === "crypto") {
     const addr = getCryptoWallet();
     const text = `${tr.cryptoTitle}\n\n${tr.cryptoBody(addr, fmtUsd(price))}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
-  } else {
+    return;
+  }
+
+  if (method === "remitly") {
     const upi = getUpiId();
     const text = `${tr.remitlyTitle}\n\n${tr.remitlyBody(upi, fmtUsd(price))}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
+    return;
   }
+
+  // method === "cryptobot"
+  try {
+    const invoice = await cbCreateInvoice({
+      amountUsd: price,
+      description: `WinStar order #${orderId} — ${tr.game[game]} (${tr.periodLabel[period]})`,
+      payload: String(orderId),
+    });
+    const payUrl =
+      invoice.mini_app_invoice_url ||
+      invoice.bot_invoice_url ||
+      invoice.pay_url ||
+      invoice.web_app_invoice_url ||
+      "";
+    if (!payUrl) {
+      logger.warn({ invoice }, "Crypto Pay createInvoice returned no URL");
+      await showMenuText(ctx, tr.cryptoBotPaymentFailed, paymentsKb(lang, game, period));
+      return;
+    }
+    setOrderCryptobotInvoice(orderId, String(invoice.invoice_id), payUrl);
+    const assets = getCryptoBotAssets();
+    const text = `${tr.cryptoBotTitle}\n\n${tr.cryptoBotBody(fmtUsd(price), assets)}`;
+    await showMenuText(ctx, text, payCryptoBotKb(lang, orderId, payUrl));
+  } catch (err) {
+    logger.error({ err, orderId }, "Failed to create Crypto Pay invoice");
+    await showMenuText(ctx, tr.cryptoBotPaymentFailed, paymentsKb(lang, game, period));
+  }
+}
+
+async function checkCryptoBotPayment(
+  ctx: Context,
+  orderId: number,
+  bot: Bot,
+): Promise<void> {
+  const { lang } = getOrCreateUser(ctx);
+  const tr = t(lang);
+  const order = getOrder(orderId);
+  if (!order || order.user_telegram_id !== ctx.from?.id) {
+    await showMenuText(ctx, tr.adminOrderAlreadyProcessed, mainMenuKb(lang));
+    return;
+  }
+  if (order.status === "delivered") {
+    // Already delivered — just nudge them home, the key was already sent.
+    await showMenuText(ctx, tr.adminOrderAlreadyProcessed, mainMenuKb(lang));
+    return;
+  }
+  if (!order.cryptobot_invoice_id) {
+    await showMenuText(ctx, tr.cryptoBotPaymentFailed, mainMenuKb(lang));
+    return;
+  }
+  try {
+    const invoices = await cbGetInvoices([order.cryptobot_invoice_id]);
+    const inv = invoices[0];
+    if (inv && inv.status === "paid") {
+      await deliverPaidOrder(bot, orderId);
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err, orderId }, "Crypto Pay getInvoices failed");
+  }
+  await ctx.answerCallbackQuery({ text: tr.cryptoBotNotPaidYet, show_alert: true });
 }
 
 async function notifyAdminsOfOrder(
@@ -303,6 +386,11 @@ export function registerUserHandlers(bot: Bot): void {
     const orderId = Number(ctx.match![1]);
     await ctx.answerCallbackQuery();
     await confirmPayment(ctx, orderId, bot);
+  });
+
+  bot.callbackQuery(/^pay:cbcheck:(\d+)$/, async (ctx) => {
+    const orderId = Number(ctx.match![1]);
+    await checkCryptoBotPayment(ctx, orderId, bot);
   });
 }
 

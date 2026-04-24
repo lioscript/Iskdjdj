@@ -73,6 +73,7 @@ export function paymentsKb(
 ): InlineKeyboard {
   const tr = t(lang);
   return new InlineKeyboard()
+    .text(tr.paymentLabel.cryptobot, `buy:pay:${game}:${period}:cryptobot`).row()
     .text(tr.paymentLabel.crypto, `buy:pay:${game}:${period}:crypto`).row()
     .text(tr.paymentLabel.remitly, `buy:pay:${game}:${period}:remitly`).row()
     .text(tr.btnBack, `buy:game:${game}`);
@@ -82,6 +83,18 @@ export function payConfirmKb(lang: Lang, orderId: number): InlineKeyboard {
   const tr = t(lang);
   return new InlineKeyboard()
     .text(tr.paidButton, `pay:confirm:${orderId}`).row()
+    .text(tr.cancelButton, "nav:home");
+}
+
+export function payCryptoBotKb(
+  lang: Lang,
+  orderId: number,
+  payUrl: string,
+): InlineKeyboard {
+  const tr = t(lang);
+  return new InlineKeyboard()
+    .url(tr.cryptoBotPayBtn, payUrl).row()
+    .text(tr.cryptoBotCheckBtn, `pay:cbcheck:${orderId}`).row()
     .text(tr.cancelButton, "nav:home");
 }
 
@@ -149,6 +162,8 @@ export function adminSettingsKb(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(tr.adminBtnSetCrypto, "adm:set:crypto").row()
     .text(tr.adminBtnSetUpi, "adm:set:upi").row()
+    .text(tr.adminBtnSetCryptoBotToken, "adm:set:cbtoken").row()
+    .text(tr.adminBtnSetCryptoBotAssets, "adm:set:cbassets").row()
     .text(tr.adminBack, "adm:home");
 }
 
