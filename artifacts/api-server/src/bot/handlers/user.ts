@@ -374,7 +374,11 @@ export function registerUserHandlers(bot: Bot): void {
     const g = ctx.match![1]!;
     const p = ctx.match![2]!;
     const m = ctx.match![3]!;
-    if (!isGameId(g) || !isPeriodId(p) || (m !== "crypto" && m !== "remitly")) {
+    if (
+      !isGameId(g) ||
+      !isPeriodId(p) ||
+      (m !== "crypto" && m !== "remitly" && m !== "cryptobot")
+    ) {
       await ctx.answerCallbackQuery();
       return;
     }
