@@ -30,6 +30,9 @@ type Dict = {
   btnHome: string;
   pickGame: string;
   pickPubgVariant: string;
+  pickCodmVariant: string;
+  pickMlbbVariant: string;
+  pickAndroidVariant: string;
   pickPeriod: string;
   pickPayment: string;
   periodLabel: Record<PeriodId, string>;
@@ -122,9 +125,15 @@ const GAME_LABELS = {
   pubg_global: "PUBG Mobile — Global",
   pubg_taiwan: "PUBG Mobile — Taiwan",
   pubg_korean: "PUBG Mobile — Korean",
-  codm: "Call of Duty GL",
-  ml: "Mobile Legends",
+  codm_global: "Call of Duty — Global",
+  codm_garena: "Call of Duty — Garena",
+  codm_vietnam: "Call of Duty — Vietnam",
+  ml_global: "Mobile Legends — Global",
+  ml_usa: "Mobile Legends — USA",
+  ml_vietnam: "Mobile Legends — Vietnam",
   "8bp": "8 Ball Pool",
+  android_root: "Android — Root",
+  android_nonroot: "Android — Non-root",
 } as const;
 
 const en: Dict = {
@@ -145,6 +154,9 @@ const en: Dict = {
   btnHome: "🏠  Main menu",
   pickGame: "🎮  Choose a game",
   pickPubgVariant: "🌍  PUBG Mobile  •  pick a region",
+  pickCodmVariant: "🌍  Call of Duty  •  pick a version",
+  pickMlbbVariant: "🌍  Mobile Legends  •  pick a version",
+  pickAndroidVariant: "📱  Android  •  pick a version",
   pickPeriod: "⏳  Choose a period",
   pickPayment: "💳  Choose a payment method",
   periodLabel: { day: "Day", week: "Week", month: "Month" },
@@ -262,6 +274,9 @@ const ru: Dict = {
   btnHome: "🏠  Главное меню",
   pickGame: "🎮  Выберите игру",
   pickPubgVariant: "🌍  PUBG Mobile  •  выберите регион",
+  pickCodmVariant: "🌍  Call of Duty  •  выберите версию",
+  pickMlbbVariant: "🌍  Mobile Legends  •  выберите версию",
+  pickAndroidVariant: "📱  Android  •  выберите версию",
   pickPeriod: "⏳  Выберите период",
   pickPayment: "💳  Выберите способ оплаты",
   periodLabel: { day: "День", week: "Неделя", month: "Месяц" },
@@ -380,6 +395,9 @@ const hi: Dict = {
   btnHome: "🏠  मुख्य मेनू",
   pickGame: "🎮  गेम चुनें",
   pickPubgVariant: "🌍  PUBG Mobile  •  क्षेत्र चुनें",
+  pickCodmVariant: "🌍  Call of Duty  •  वर्ज़न चुनें",
+  pickMlbbVariant: "🌍  Mobile Legends  •  वर्ज़न चुनें",
+  pickAndroidVariant: "📱  Android  •  वर्ज़न चुनें",
   pickPeriod: "⏳  अवधि चुनें",
   pickPayment: "💳  भुगतान का तरीका चुनें",
   periodLabel: { day: "दिन", week: "सप्ताह", month: "महीना" },

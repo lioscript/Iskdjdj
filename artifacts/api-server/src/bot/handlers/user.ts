@@ -23,9 +23,12 @@ import {
 import { isLang, LANGUAGE_PICKER_PROMPT, t, type Lang } from "../i18n";
 import {
   adminOrderKb,
+  androidVariantsKb,
+  codmVariantsKb,
   gamesKb,
   languagePickerKb,
   mainMenuKb,
+  mlbbVariantsKb,
   payConfirmKb,
   payCryptoBotKb,
   paymentsKb,
@@ -96,6 +99,24 @@ async function showPubg(ctx: Context): Promise<void> {
   const { lang } = getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickPubgVariant, pubgVariantsKb(lang));
+}
+
+async function showCodm(ctx: Context): Promise<void> {
+  const { lang } = getOrCreateUser(ctx);
+  const tr = t(lang);
+  await showMenuText(ctx, tr.pickCodmVariant, codmVariantsKb(lang));
+}
+
+async function showMlbb(ctx: Context): Promise<void> {
+  const { lang } = getOrCreateUser(ctx);
+  const tr = t(lang);
+  await showMenuText(ctx, tr.pickMlbbVariant, mlbbVariantsKb(lang));
+}
+
+async function showAndroid(ctx: Context): Promise<void> {
+  const { lang } = getOrCreateUser(ctx);
+  const tr = t(lang);
+  await showMenuText(ctx, tr.pickAndroidVariant, androidVariantsKb(lang));
 }
 
 async function showPeriods(ctx: Context, game: GameId): Promise<void> {
@@ -347,6 +368,21 @@ export function registerUserHandlers(bot: Bot): void {
   bot.callbackQuery(/^buy:pubg$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     await showPubg(ctx);
+  });
+
+  bot.callbackQuery(/^buy:codm$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showCodm(ctx);
+  });
+
+  bot.callbackQuery(/^buy:ml$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showMlbb(ctx);
+  });
+
+  bot.callbackQuery(/^buy:android$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showAndroid(ctx);
   });
 
   bot.callbackQuery(/^buy:game:(.+)$/, async (ctx) => {

@@ -1,5 +1,15 @@
 import { InlineKeyboard } from "grammy";
-import { GAMES, PERIODS, PUBG_VARIANTS, type GameId, type PeriodId } from "./catalog";
+import {
+  ANDROID_VARIANTS,
+  CODM_VARIANTS,
+  GAMES,
+  MLBB_VARIANTS,
+  PERIODS,
+  PUBG_VARIANTS,
+  getGameGroup,
+  type GameId,
+  type PeriodId,
+} from "./catalog";
 import { LANGS, LANG_LABELS, t, type Lang } from "./i18n";
 import { countAvailableKeys, getPrice, listAvailableKeys } from "./db";
 
@@ -20,18 +30,35 @@ export function mainMenuKb(lang: Lang): InlineKeyboard {
     .url(tr.btnSupport, "https://t.me/HermesIX");
 }
 
+// Maps a multi-variant game group to the callback that opens its picker.
+const GROUP_PICKER_CALLBACK: Record<string, string> = {
+  pubg: "buy:pubg",
+  codm: "buy:codm",
+  ml: "buy:ml",
+  android: "buy:android",
+};
+
+const GROUP_LABEL: Record<string, string> = {
+  pubg: "PUBG Mobile",
+  codm: "Call of Duty",
+  ml: "Mobile Legends",
+  android: "Android",
+};
+
 export function gamesKb(lang: Lang): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard();
-  // Render games in catalog order. PUBG variants collapse into a single
-  // "PUBG Mobile" entry that opens the region picker — inserted in place
-  // of the first PUBG variant so its position respects catalog ordering.
-  let pubgInserted = false;
+  // Render games in catalog order. Variant groups (PUBG / CODM / MLBB /
+  // Android) collapse into a single entry that opens a region/version
+  // picker — inserted in place of the first variant of that group so its
+  // position respects catalog ordering.
+  const seenGroups = new Set<string>();
   for (const g of GAMES) {
-    if (g.group === "pubg") {
-      if (!pubgInserted) {
-        kb.text("PUBG Mobile", "buy:pubg").row();
-        pubgInserted = true;
+    const pickerCb = GROUP_PICKER_CALLBACK[g.group];
+    if (pickerCb) {
+      if (!seenGroups.has(g.group)) {
+        kb.text(GROUP_LABEL[g.group] ?? g.label, pickerCb).row();
+        seenGroups.add(g.group);
       }
       continue;
     }
@@ -41,14 +68,33 @@ export function gamesKb(lang: Lang): InlineKeyboard {
   return kb;
 }
 
-export function pubgVariantsKb(lang: Lang): InlineKeyboard {
+function variantsKb(
+  lang: Lang,
+  variants: { id: GameId; shortLabel: string }[],
+): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard();
-  for (const v of PUBG_VARIANTS) {
+  for (const v of variants) {
     kb.text(v.shortLabel, `buy:game:${v.id}`).row();
   }
   kb.text(tr.btnBack, "buy:games");
   return kb;
+}
+
+export function pubgVariantsKb(lang: Lang): InlineKeyboard {
+  return variantsKb(lang, PUBG_VARIANTS);
+}
+
+export function codmVariantsKb(lang: Lang): InlineKeyboard {
+  return variantsKb(lang, CODM_VARIANTS);
+}
+
+export function mlbbVariantsKb(lang: Lang): InlineKeyboard {
+  return variantsKb(lang, MLBB_VARIANTS);
+}
+
+export function androidVariantsKb(lang: Lang): InlineKeyboard {
+  return variantsKb(lang, ANDROID_VARIANTS);
 }
 
 function fmtUsd(n: number): string {
@@ -66,12 +112,10 @@ export function periodsKb(lang: Lang, game: GameId): InlineKeyboard {
         : tr.periodLabel[p];
     kb.text(label, `buy:period:${game}:${p}`).row();
   }
-  // Back to PUBG variants if pubg, else games list
-  if (game.startsWith("pubg_")) {
-    kb.text(tr.btnBack, "buy:pubg");
-  } else {
-    kb.text(tr.btnBack, "buy:games");
-  }
+  // Back to the variant picker for the group, else games list
+  const group = getGameGroup(game);
+  const groupPicker = group ? GROUP_PICKER_CALLBACK[group] : undefined;
+  kb.text(tr.btnBack, groupPicker ?? "buy:games");
   return kb;
 }
 

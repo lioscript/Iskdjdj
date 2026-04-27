@@ -120,18 +120,29 @@ db.exec(
   "CREATE INDEX IF NOT EXISTS idx_orders_expires ON orders(expires_at) WHERE expires_at IS NOT NULL AND status = 'delivered'",
 );
 
-// One-time data migration: BGMI used to be tracked as a PUBG variant
-// (`pubg_bgmi`); now it is a top-level game with id `bgmi`. Rename any
-// existing rows so prices, stock and orders are not lost.
+// One-time data migrations.
+//
+// 1. BGMI used to be tracked as a PUBG variant (`pubg_bgmi`); now it is a
+//    top-level game with id `bgmi`.
+// 2. CODM and MLBB used to be single SKUs (`codm`, `ml`); now each one
+//    has region/version variants, with the original SKU mapped onto the
+//    `_global` flavour so existing stock/prices/orders are preserved.
 {
-  db.prepare("UPDATE keys SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
-  db.prepare("UPDATE orders SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
-  // For prices we delete duplicates first (in case a `bgmi` row was
-  // already auto-seeded), then rename the legacy rows.
-  db.prepare(
-    "DELETE FROM prices WHERE game = 'pubg_bgmi' AND EXISTS (SELECT 1 FROM prices p2 WHERE p2.game = 'bgmi' AND p2.period = prices.period)",
-  ).run();
-  db.prepare("UPDATE prices SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
+  const renames: Array<{ from: string; to: string }> = [
+    { from: "pubg_bgmi", to: "bgmi" },
+    { from: "codm", to: "codm_global" },
+    { from: "ml", to: "ml_global" },
+  ];
+  for (const { from, to } of renames) {
+    db.prepare("UPDATE keys SET game = ? WHERE game = ?").run(to, from);
+    db.prepare("UPDATE orders SET game = ? WHERE game = ?").run(to, from);
+    // For prices we delete duplicates first (in case a destination row
+    // was already auto-seeded), then rename the legacy rows.
+    db.prepare(
+      "DELETE FROM prices WHERE game = ? AND EXISTS (SELECT 1 FROM prices p2 WHERE p2.game = ? AND p2.period = prices.period)",
+    ).run(from, to);
+    db.prepare("UPDATE prices SET game = ? WHERE game = ?").run(to, from);
+  }
 }
 
 // ---------- defaults ----------
@@ -148,15 +159,33 @@ const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number
   { game: "pubg_korean", period: "day", amount_usd: 5 },
   { game: "pubg_korean", period: "week", amount_usd: 20 },
   { game: "pubg_korean", period: "month", amount_usd: 50 },
-  { game: "codm", period: "day", amount_usd: 5 },
-  { game: "codm", period: "week", amount_usd: 18 },
-  { game: "codm", period: "month", amount_usd: 45 },
-  { game: "ml", period: "day", amount_usd: 4 },
-  { game: "ml", period: "week", amount_usd: 15 },
-  { game: "ml", period: "month", amount_usd: 40 },
+  { game: "codm_global", period: "day", amount_usd: 5 },
+  { game: "codm_global", period: "week", amount_usd: 18 },
+  { game: "codm_global", period: "month", amount_usd: 45 },
+  { game: "codm_garena", period: "day", amount_usd: 5 },
+  { game: "codm_garena", period: "week", amount_usd: 18 },
+  { game: "codm_garena", period: "month", amount_usd: 45 },
+  { game: "codm_vietnam", period: "day", amount_usd: 5 },
+  { game: "codm_vietnam", period: "week", amount_usd: 18 },
+  { game: "codm_vietnam", period: "month", amount_usd: 45 },
+  { game: "ml_global", period: "day", amount_usd: 4 },
+  { game: "ml_global", period: "week", amount_usd: 15 },
+  { game: "ml_global", period: "month", amount_usd: 40 },
+  { game: "ml_usa", period: "day", amount_usd: 4 },
+  { game: "ml_usa", period: "week", amount_usd: 15 },
+  { game: "ml_usa", period: "month", amount_usd: 40 },
+  { game: "ml_vietnam", period: "day", amount_usd: 4 },
+  { game: "ml_vietnam", period: "week", amount_usd: 15 },
+  { game: "ml_vietnam", period: "month", amount_usd: 40 },
   { game: "8bp", period: "day", amount_usd: 3 },
   { game: "8bp", period: "week", amount_usd: 10 },
   { game: "8bp", period: "month", amount_usd: 25 },
+  { game: "android_root", period: "day", amount_usd: 5 },
+  { game: "android_root", period: "week", amount_usd: 18 },
+  { game: "android_root", period: "month", amount_usd: 45 },
+  { game: "android_nonroot", period: "day", amount_usd: 5 },
+  { game: "android_nonroot", period: "week", amount_usd: 18 },
+  { game: "android_nonroot", period: "month", amount_usd: 45 },
 ];
 
 {
