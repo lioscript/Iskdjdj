@@ -26,7 +26,7 @@ export function mainMenuKb(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(tr.btnBuy, "buy:games").row()
     .text(tr.btnLanguage, "lang:pick").row()
-    .url(tr.btnReviews, "https://t.me/WinStarFeed").row()
+    .url(tr.btnFeedbacks, "https://t.me/WinStarFeed").row()
     .url(tr.btnSupport, "https://t.me/HermesIX");
 }
 

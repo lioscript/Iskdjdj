@@ -24,7 +24,7 @@ type Dict = {
   mainMenuTitle: (name: string) => string;
   btnBuy: string;
   btnLanguage: string;
-  btnReviews: string;
+  btnFeedbacks: string;
   btnSupport: string;
   btnBack: string;
   btnHome: string;
@@ -154,7 +154,7 @@ const en: Dict = {
     `👇  Pick an option below to get started.`,
   btnBuy: "🎮  Buy keys",
   btnLanguage: "🌐  Change language",
-  btnReviews: "💬  Reviews",
+  btnFeedbacks: "✅  Feedbacks",
   btnSupport: "🛟  Support",
   btnBack: "⬅  Back",
   btnHome: "🏠  Main menu",
@@ -281,7 +281,7 @@ const ru: Dict = {
     `👇  Выберите опцию ниже, чтобы начать.`,
   btnBuy: "🎮  Купить ключи",
   btnLanguage: "🌐  Сменить язык",
-  btnReviews: "💬  Отзывы",
+  btnFeedbacks: "✅  Отзывы",
   btnSupport: "🛟  Поддержка",
   btnBack: "⬅  Назад",
   btnHome: "🏠  Главное меню",
@@ -409,7 +409,7 @@ const hi: Dict = {
     `👇  शुरू करने के लिए नीचे एक विकल्प चुनें।`,
   btnBuy: "🎮  कीज़ खरीदें",
   btnLanguage: "🌐  भाषा बदलें",
-  btnReviews: "💬  समीक्षाएँ",
+  btnFeedbacks: "✅  फ़ीडबैक",
   btnSupport: "🛟  सहायता",
   btnBack: "⬅  वापस",
   btnHome: "🏠  मुख्य मेनू",
