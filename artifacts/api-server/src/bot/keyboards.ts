@@ -23,9 +23,18 @@ export function mainMenuKb(lang: Lang): InlineKeyboard {
 export function gamesKb(lang: Lang): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard();
-  // Show PUBG as a single entry that opens variants
-  kb.text("PUBG Mobile", "buy:pubg").row();
-  for (const g of GAMES.filter((g) => g.group !== "pubg")) {
+  // Render games in catalog order. PUBG variants collapse into a single
+  // "PUBG Mobile" entry that opens the region picker — inserted in place
+  // of the first PUBG variant so its position respects catalog ordering.
+  let pubgInserted = false;
+  for (const g of GAMES) {
+    if (g.group === "pubg") {
+      if (!pubgInserted) {
+        kb.text("PUBG Mobile", "buy:pubg").row();
+        pubgInserted = true;
+      }
+      continue;
+    }
     kb.text(tr.game[g.id], `buy:game:${g.id}`).row();
   }
   kb.text(tr.btnHome, "nav:home");

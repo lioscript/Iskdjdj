@@ -52,6 +52,9 @@ type Dict = {
   paymentRejected: string;
   outOfStock: string;
   yourKey: (game: string, period: string, value: string) => string;
+  expireReminder3d: (game: string, period: string) => string;
+  expireReminder1d: (game: string, period: string) => string;
+  expireReminder1h: (game: string, period: string) => string;
   game: Record<GameId, string>;
   paymentLabel: Record<"crypto" | "remitly" | "cryptobot", string>;
   // Admin
@@ -115,7 +118,7 @@ type Dict = {
 };
 
 const GAME_LABELS = {
-  pubg_bgmi: "PUBG Mobile — BGMI",
+  bgmi: "BGMI",
   pubg_global: "PUBG Mobile — Global",
   pubg_taiwan: "PUBG Mobile — Taiwan",
   pubg_korean: "PUBG Mobile — Korean",
@@ -174,6 +177,12 @@ const en: Dict = {
   outOfStock: "😔  Sorry — out of stock for this option.\nPlease choose another period or contact support.",
   yourKey: (game, period, value) =>
     `🎉  *Order delivered!*\n\n🎮  Game: ${game}\n⏳  Period: ${period}\n\n🔑  Your key:\n\n\`${value}\`\n\n👆  Tap to copy.\n\n💎  Thank you for your purchase!`,
+  expireReminder3d: (game, period) =>
+    `⏰  *Heads up!*\n\nYour *${game}* (${period}) key will expire in *3 days*.\n\n🔁  Tap “🎮  Buy keys” in the main menu to grab a new one and avoid downtime.`,
+  expireReminder1d: (game, period) =>
+    `⚠  *Reminder*\n\nOnly *1 day* left on your *${game}* (${period}) key.\n\n🔁  Renew now to keep playing without interruptions.`,
+  expireReminder1h: (game, period) =>
+    `🚨  *Last hour!*\n\nYour *${game}* (${period}) key expires in *1 hour*.\n\n🔁  Buy a new one now so you don't get kicked mid-match.`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
@@ -286,6 +295,12 @@ const ru: Dict = {
     "😔  К сожалению, ключей по этому варианту нет в наличии.\nВыберите другой период или напишите в поддержку.",
   yourKey: (game, period, value) =>
     `🎉  *Заказ выдан!*\n\n🎮  Игра: ${game}\n⏳  Период: ${period}\n\n🔑  Ваш ключ:\n\n\`${value}\`\n\n👆  Нажмите, чтобы скопировать.\n\n💎  Спасибо за покупку!`,
+  expireReminder3d: (game, period) =>
+    `⏰  *Напоминание*\n\nВаш ключ для *${game}* (${period}) истечёт через *3 дня*.\n\n🔁  Нажмите «🎮  Купить ключи» в главном меню, чтобы продлить без простоя.`,
+  expireReminder1d: (game, period) =>
+    `⚠  *Напоминание*\n\nДо окончания вашего ключа *${game}* (${period}) остался *1 день*.\n\n🔁  Продлите сейчас, чтобы играть без перерыва.`,
+  expireReminder1h: (game, period) =>
+    `🚨  *Последний час!*\n\nВаш ключ *${game}* (${period}) истекает через *1 час*.\n\n🔁  Купите новый сейчас, чтобы не вылететь посреди матча.`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
@@ -398,6 +413,12 @@ const hi: Dict = {
     "😔  क्षमा करें — इस विकल्प के लिए स्टॉक में कोई की नहीं है।\nकोई दूसरी अवधि चुनें या सहायता से संपर्क करें।",
   yourKey: (game, period, value) =>
     `🎉  *आपका ऑर्डर पूरा हुआ!*\n\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n\n🔑  आपकी की:\n\n\`${value}\`\n\n👆  कॉपी करने के लिए टैप करें।\n\n💎  खरीद के लिए धन्यवाद!`,
+  expireReminder3d: (game, period) =>
+    `⏰  *सूचना*\n\nआपकी *${game}* (${period}) की *3 दिन* में एक्सपायर हो जाएगी।\n\n🔁  बिना रुकावट खेलते रहने के लिए मुख्य मेनू में «🎮  कीज़ खरीदें» दबाएँ।`,
+  expireReminder1d: (game, period) =>
+    `⚠  *रिमाइंडर*\n\nआपकी *${game}* (${period}) की में सिर्फ *1 दिन* बाकी है।\n\n🔁  अभी रिन्यू करें ताकि खेल में रुकावट न आए।`,
+  expireReminder1h: (game, period) =>
+    `🚨  *आखिरी 1 घंटा!*\n\nआपकी *${game}* (${period}) की *1 घंटे* में एक्सपायर हो रही है।\n\n🔁  मैच के बीच में बाहर न हों — अभी नई की खरीदें।`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",

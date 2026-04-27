@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
-import type { GameId, PaymentMethod, PeriodId } from "./catalog";
+import { PERIOD_DURATION_MS, type GameId, type PaymentMethod, type PeriodId } from "./catalog";
 import type { Lang } from "./i18n";
 
 const here = (() => {
@@ -86,8 +86,9 @@ db.exec(`
   );
 `);
 
-// Lightweight migration: add Crypto Bot invoice tracking columns to
-// existing `orders` rows on already-deployed databases.
+// Lightweight migration: add Crypto Bot invoice tracking columns and
+// expiration / reminder tracking columns to existing `orders` rows on
+// already-deployed databases.
 {
   const cols = db
     .prepare("PRAGMA table_info(orders)")
@@ -99,16 +100,45 @@ db.exec(`
   if (!have.has("cryptobot_pay_url")) {
     db.exec("ALTER TABLE orders ADD COLUMN cryptobot_pay_url TEXT");
   }
+  if (!have.has("expires_at")) {
+    db.exec("ALTER TABLE orders ADD COLUMN expires_at INTEGER");
+  }
+  if (!have.has("reminded_3d")) {
+    db.exec("ALTER TABLE orders ADD COLUMN reminded_3d INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!have.has("reminded_1d")) {
+    db.exec("ALTER TABLE orders ADD COLUMN reminded_1d INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!have.has("reminded_1h")) {
+    db.exec("ALTER TABLE orders ADD COLUMN reminded_1h INTEGER NOT NULL DEFAULT 0");
+  }
 }
 db.exec(
   "CREATE INDEX IF NOT EXISTS idx_orders_cryptobot ON orders(cryptobot_invoice_id) WHERE cryptobot_invoice_id IS NOT NULL",
 );
+db.exec(
+  "CREATE INDEX IF NOT EXISTS idx_orders_expires ON orders(expires_at) WHERE expires_at IS NOT NULL AND status = 'delivered'",
+);
+
+// One-time data migration: BGMI used to be tracked as a PUBG variant
+// (`pubg_bgmi`); now it is a top-level game with id `bgmi`. Rename any
+// existing rows so prices, stock and orders are not lost.
+{
+  db.prepare("UPDATE keys SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
+  db.prepare("UPDATE orders SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
+  // For prices we delete duplicates first (in case a `bgmi` row was
+  // already auto-seeded), then rename the legacy rows.
+  db.prepare(
+    "DELETE FROM prices WHERE game = 'pubg_bgmi' AND EXISTS (SELECT 1 FROM prices p2 WHERE p2.game = 'bgmi' AND p2.period = prices.period)",
+  ).run();
+  db.prepare("UPDATE prices SET game = 'bgmi' WHERE game = 'pubg_bgmi'").run();
+}
 
 // ---------- defaults ----------
 const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number }> = [
-  { game: "pubg_bgmi", period: "day", amount_usd: 5 },
-  { game: "pubg_bgmi", period: "week", amount_usd: 20 },
-  { game: "pubg_bgmi", period: "month", amount_usd: 50 },
+  { game: "bgmi", period: "day", amount_usd: 5 },
+  { game: "bgmi", period: "week", amount_usd: 20 },
+  { game: "bgmi", period: "month", amount_usd: 50 },
   { game: "pubg_global", period: "day", amount_usd: 5 },
   { game: "pubg_global", period: "week", amount_usd: 20 },
   { game: "pubg_global", period: "month", amount_usd: 50 },
@@ -293,7 +323,9 @@ export function deleteKey(id: number): void {
 }
 
 // Reserve a key for an order atomically: find oldest unused, mark used,
-// and link to order. Returns key value or null if out of stock.
+// and link to order. Also stamps the order with `expires_at` so we can
+// remind the user before the key expires. Returns key value or null if
+// out of stock.
 const reserveKeyForOrderTxn = db.transaction(
   (orderId: number, game: GameId, period: PeriodId): { id: number; value: string } | null => {
     const row = db
@@ -306,9 +338,11 @@ const reserveKeyForOrderTxn = db.transaction(
       .get(game, period) as { id: number; value: string } | undefined;
     if (!row) return null;
     db.prepare("UPDATE keys SET used = 1 WHERE id = ?").run(row.id);
+    const now = Date.now();
+    const expiresAt = now + PERIOD_DURATION_MS[period];
     db.prepare(
-      "UPDATE orders SET delivered_key_id = ?, status = 'delivered', decided_at = ? WHERE id = ?",
-    ).run(row.id, Date.now(), orderId);
+      "UPDATE orders SET delivered_key_id = ?, status = 'delivered', decided_at = ?, expires_at = ?, reminded_3d = 0, reminded_1d = 0, reminded_1h = 0 WHERE id = ?",
+    ).run(row.id, now, expiresAt, orderId);
     // Hard-delete after assignment per requirement (one-time keys removed from DB after issuance)
     db.prepare("DELETE FROM keys WHERE id = ?").run(row.id);
     return row;
@@ -337,7 +371,13 @@ export type OrderRow = {
   decided_at: number | null;
   cryptobot_invoice_id: string | null;
   cryptobot_pay_url: string | null;
+  expires_at: number | null;
+  reminded_3d: number;
+  reminded_1d: number;
+  reminded_1h: number;
 };
+
+export type ReminderKind = "3d" | "1d" | "1h";
 
 const insertOrderStmt = db.prepare(
   `INSERT INTO orders (user_telegram_id, game, period, payment_method, amount_usd, status, created_at)
@@ -445,4 +485,40 @@ export function getCryptoBotToken(): string {
 
 export function getCryptoBotAssets(): string {
   return getSetting("cryptobot_assets") || "USDT,TON";
+}
+
+// ---------- expiration reminders ----------
+const REMINDER_COL: Record<ReminderKind, "reminded_3d" | "reminded_1d" | "reminded_1h"> = {
+  "3d": "reminded_3d",
+  "1d": "reminded_1d",
+  "1h": "reminded_1h",
+};
+
+// Returns delivered orders whose key is about to expire within the given
+// number of milliseconds and that have not been notified for `kind` yet.
+// We exclude orders that already passed their expiration (no point in
+// sending a "1 hour left" note 5 hours after the key expired).
+export function listOrdersDueForReminder(
+  kind: ReminderKind,
+  windowMs: number,
+): OrderRow[] {
+  const now = Date.now();
+  const col = REMINDER_COL[kind];
+  return db
+    .prepare(
+      `SELECT * FROM orders
+       WHERE status = 'delivered'
+         AND expires_at IS NOT NULL
+         AND ${col} = 0
+         AND expires_at > ?
+         AND expires_at <= ?
+       ORDER BY expires_at ASC
+       LIMIT 200`,
+    )
+    .all(now, now + windowMs) as OrderRow[];
+}
+
+export function markReminderSent(orderId: number, kind: ReminderKind): void {
+  const col = REMINDER_COL[kind];
+  db.prepare(`UPDATE orders SET ${col} = 1 WHERE id = ?`).run(orderId);
 }
