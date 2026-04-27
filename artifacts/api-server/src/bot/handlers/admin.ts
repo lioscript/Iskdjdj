@@ -4,6 +4,7 @@ import {
   countAvailableKeys,
   countUsers,
   deleteKey,
+  getBinanceId,
   getCryptoBotAssets,
   getCryptoBotToken,
   getCryptoWallet,
@@ -77,6 +78,7 @@ async function showAdminSettings(ctx: Context): Promise<void> {
     tr.adminSettingsBody(
       getCryptoWallet(),
       getUpiId(),
+      getBinanceId(),
       getCryptoBotToken(),
       getCryptoBotAssets(),
     ),
@@ -230,9 +232,14 @@ export function registerAdminHandlers(bot: Bot): void {
     await showAdminSettings(ctx);
   });
 
-  bot.callbackQuery(/^adm:set:(crypto|upi|cbtoken|cbassets)$/, async (ctx) => {
+  bot.callbackQuery(/^adm:set:(crypto|upi|binance|cbtoken|cbassets)$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
-    const which = ctx.match![1] as "crypto" | "upi" | "cbtoken" | "cbassets";
+    const which = ctx.match![1] as
+      | "crypto"
+      | "upi"
+      | "binance"
+      | "cbtoken"
+      | "cbassets";
     const lang = getLang(ctx);
     const tr = t(lang);
     await ctx.answerCallbackQuery();
@@ -242,6 +249,9 @@ export function registerAdminHandlers(bot: Bot): void {
     } else if (which === "upi") {
       setState(ctx.chat!.id, { kind: "await_upi" });
       await showMenuText(ctx, tr.adminEnterUpi, adminSettingsKb(lang));
+    } else if (which === "binance") {
+      setState(ctx.chat!.id, { kind: "await_binance" });
+      await showMenuText(ctx, tr.adminEnterBinance, adminSettingsKb(lang));
     } else if (which === "cbtoken") {
       setState(ctx.chat!.id, { kind: "await_cbtoken" });
       await showMenuText(ctx, tr.adminEnterCryptoBotToken, adminSettingsKb(lang));
@@ -452,6 +462,13 @@ export function registerAdminHandlers(bot: Bot): void {
       setSetting("upi_id", text.trim());
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminUpiUpdated, adminSettingsKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_binance") {
+      setSetting("binance_id", text.trim());
+      clearState(ctx.chat.id);
+      await showMenuText(ctx, tr.adminBinanceUpdated, adminSettingsKb(lang));
       return;
     }
 

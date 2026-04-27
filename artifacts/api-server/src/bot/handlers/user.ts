@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import {
   countAvailableKeys,
   createOrder,
+  getBinanceId,
   getCryptoBotAssets,
   getCryptoWallet,
   getOrder,
@@ -185,9 +186,16 @@ async function startPayment(
     return;
   }
 
-  if (method === "remitly") {
+  if (method === "upi") {
     const upi = getUpiId();
-    const text = `${tr.remitlyTitle}\n\n${tr.remitlyBody(upi, fmtUsd(price))}`;
+    const text = `${tr.upiTitle}\n\n${tr.upiBody(upi, fmtUsd(price))}`;
+    await showMenuText(ctx, text, payConfirmKb(lang, orderId));
+    return;
+  }
+
+  if (method === "binance") {
+    const binanceId = getBinanceId();
+    const text = `${tr.binanceTitle}\n\n${tr.binanceBody(binanceId, fmtUsd(price))}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
     return;
   }
@@ -413,7 +421,7 @@ export function registerUserHandlers(bot: Bot): void {
     if (
       !isGameId(g) ||
       !isPeriodId(p) ||
-      (m !== "crypto" && m !== "remitly" && m !== "cryptobot")
+      (m !== "crypto" && m !== "cryptobot" && m !== "upi" && m !== "binance")
     ) {
       await ctx.answerCallbackQuery();
       return;

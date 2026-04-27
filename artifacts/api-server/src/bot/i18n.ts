@@ -40,8 +40,10 @@ type Dict = {
   noPriceYet: string;
   cryptoTitle: string;
   cryptoBody: (addr: string, amount: string) => string;
-  remitlyTitle: string;
-  remitlyBody: (upi: string, amount: string) => string;
+  upiTitle: string;
+  upiBody: (upi: string, amount: string) => string;
+  binanceTitle: string;
+  binanceBody: (binanceId: string, amount: string) => string;
   cryptoBotTitle: string;
   cryptoBotBody: (amount: string, assets: string) => string;
   cryptoBotPayBtn: string;
@@ -59,7 +61,7 @@ type Dict = {
   expireReminder1d: (game: string, period: string) => string;
   expireReminder1h: (game: string, period: string) => string;
   game: Record<GameId, string>;
-  paymentLabel: Record<"crypto" | "remitly" | "cryptobot", string>;
+  paymentLabel: Record<"crypto" | "cryptobot" | "upi" | "binance", string>;
   // Admin
   adminOnly: string;
   adminPanel: string;
@@ -86,19 +88,23 @@ type Dict = {
   adminSettingsBody: (
     wallet: string,
     upi: string,
+    binanceId: string,
     cryptoBotToken: string,
     cryptoBotAssets: string,
   ) => string;
   adminEnterCrypto: string;
   adminEnterUpi: string;
+  adminEnterBinance: string;
   adminEnterCryptoBotToken: string;
   adminEnterCryptoBotAssets: string;
   adminCryptoUpdated: string;
   adminUpiUpdated: string;
+  adminBinanceUpdated: string;
   adminCryptoBotTokenUpdated: string;
   adminCryptoBotAssetsUpdated: string;
   adminBtnSetCrypto: string;
   adminBtnSetUpi: string;
+  adminBtnSetBinance: string;
   adminBtnSetCryptoBotToken: string;
   adminBtnSetCryptoBotAssets: string;
   adminInvalidNumber: string;
@@ -166,9 +172,12 @@ const en: Dict = {
   cryptoTitle: "💰  Crypto payment  •  USDT BEP20",
   cryptoBody: (addr, amount) =>
     `Send exactly *${amount}* in *USDT (BEP20)* to the address below:\n\n\`${addr}\`\n\n👆  Tap the address to copy. After paying, press “⚡  I have paid”.`,
-  remitlyTitle: "💸  Remitly payment",
-  remitlyBody: (upi, amount) =>
-    `Send *${amount}* via Remitly to:\n\n\`${upi}\`\n\n👆  Tap to copy. After paying, press “⚡  I have paid”.`,
+  upiTitle: "🇮🇳  UPI payment  •  Indian payments",
+  upiBody: (upi, amount) =>
+    `Send *${amount}* (in INR equivalent) via UPI to:\n\n\`${upi}\`\n\n👆  Tap the UPI ID to copy. After paying, press “⚡  I have paid”.`,
+  binanceTitle: "🟡  Binance Pay  •  pay by Binance ID",
+  binanceBody: (binanceId, amount) =>
+    `Send *${amount}* via *Binance Pay* to this Binance ID:\n\n\`${binanceId}\`\n\n👆  Tap to copy. Open Binance app → *Pay* → *Send* → paste the ID. After paying, press “⚡  I have paid”.`,
   cryptoBotTitle: "🤖  Pay with @CryptoBot",
   cryptoBotBody: (amount, assets) =>
     `Total: *${amount}*\n\nTap *Pay* below — @CryptoBot will open in Telegram and let you pay in any of: ${assets}.\n\nAs soon as the payment is confirmed, your key is delivered here automatically.`,
@@ -198,8 +207,9 @@ const en: Dict = {
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
-    remitly: "💸  Remitly",
     cryptobot: "🤖  CryptoBot (Telegram)",
+    upi: "🇮🇳  UPI (India)",
+    binance: "🟡  Binance ID",
   },
   adminOnly: "🔒  This area is restricted.",
   adminPanel: "🛠  *Admin panel*",
@@ -228,20 +238,23 @@ const en: Dict = {
   adminPickGameForView: "Pick a game to view keys",
   adminPickPeriodForView: (game) => `${game}\n\nPick a period`,
   adminKeyDeleted: "Key removed.",
-  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
-    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nUPI ID (India):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\``,
   adminEnterCrypto: "Send the new BEP20 wallet address. Send /cancel to abort.",
-  adminEnterUpi: "Send the new UPI ID. Send /cancel to abort.",
+  adminEnterUpi: "Send the new UPI ID (India). Send /cancel to abort.",
+  adminEnterBinance: "Send the new Binance ID (numeric Pay ID from your Binance app). Send /cancel to abort.",
   adminEnterCryptoBotToken:
     "Send the Crypto Pay API token (get it from @CryptoBot → Crypto Pay → Create App). Send `clear` to remove it. Send /cancel to abort.",
   adminEnterCryptoBotAssets:
     "Send a comma-separated list of accepted assets (e.g. `USDT,TON,BTC,ETH`). Send /cancel to abort.",
   adminCryptoUpdated: "Crypto wallet updated.",
-  adminUpiUpdated: "UPI updated.",
+  adminUpiUpdated: "UPI ID updated.",
+  adminBinanceUpdated: "Binance ID updated.",
   adminCryptoBotTokenUpdated: "Crypto Bot token updated.",
   adminCryptoBotAssetsUpdated: "Crypto Bot assets updated.",
   adminBtnSetCrypto: "💰  Set crypto wallet",
-  adminBtnSetUpi: "💸  Set UPI",
+  adminBtnSetUpi: "🇮🇳  Set UPI ID",
+  adminBtnSetBinance: "🟡  Set Binance ID",
   adminBtnSetCryptoBotToken: "🤖  Set Crypto Bot token",
   adminBtnSetCryptoBotAssets: "🪙  Set Crypto Bot assets",
   adminInvalidNumber: "Please send a valid positive number.",
@@ -286,9 +299,12 @@ const ru: Dict = {
   cryptoTitle: "💰  Оплата криптой  •  USDT BEP20",
   cryptoBody: (addr, amount) =>
     `Отправьте ровно *${amount}* в *USDT (BEP20)* на адрес ниже:\n\n\`${addr}\`\n\n👆  Нажмите на адрес, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
-  remitlyTitle: "💸  Оплата через Remitly",
-  remitlyBody: (upi, amount) =>
-    `Отправьте *${amount}* через Remitly на:\n\n\`${upi}\`\n\n👆  Нажмите, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
+  upiTitle: "🇮🇳  Оплата UPI  •  для Индии",
+  upiBody: (upi, amount) =>
+    `Отправьте *${amount}* (в эквиваленте INR) через UPI на:\n\n\`${upi}\`\n\n👆  Нажмите на UPI ID, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
+  binanceTitle: "🟡  Binance Pay  •  оплата по Binance ID",
+  binanceBody: (binanceId, amount) =>
+    `Отправьте *${amount}* через *Binance Pay* на этот Binance ID:\n\n\`${binanceId}\`\n\n👆  Нажмите, чтобы скопировать. Откройте Binance → *Pay* → *Send* → вставьте ID. После оплаты нажмите «⚡  Я оплатил».`,
   cryptoBotTitle: "🤖  Оплата через @CryptoBot",
   cryptoBotBody: (amount, assets) =>
     `Сумма: *${amount}*\n\nНажмите *Оплатить* — откроется @CryptoBot в Telegram, где вы сможете оплатить любым из: ${assets}.\n\nКак только оплата подтвердится — ключ придёт сюда автоматически.`,
@@ -319,8 +335,9 @@ const ru: Dict = {
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
-    remitly: "💸  Remitly",
     cryptobot: "🤖  CryptoBot (Telegram)",
+    upi: "🇮🇳  UPI (Индия)",
+    binance: "🟡  Binance ID",
   },
   adminOnly: "🔒  Эта область только для администраторов.",
   adminPanel: "🛠  *Админ-панель*",
@@ -349,20 +366,23 @@ const ru: Dict = {
   adminPickGameForView: "Выберите игру для просмотра ключей",
   adminPickPeriodForView: (game) => `${game}\n\nВыберите период`,
   adminKeyDeleted: "Ключ удалён.",
-  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
-    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nUPI ID (Индия):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\``,
   adminEnterCrypto: "Отправьте новый BEP20 адрес. /cancel — отменить.",
-  adminEnterUpi: "Отправьте новый UPI ID. /cancel — отменить.",
+  adminEnterUpi: "Отправьте новый UPI ID (Индия). /cancel — отменить.",
+  adminEnterBinance: "Отправьте новый Binance ID (числовой Pay ID из приложения Binance). /cancel — отменить.",
   adminEnterCryptoBotToken:
     "Отправьте Crypto Pay API токен (получите в @CryptoBot → Crypto Pay → Create App). Отправьте `clear`, чтобы удалить токен. /cancel — отменить.",
   adminEnterCryptoBotAssets:
     "Отправьте список активов через запятую (например `USDT,TON,BTC,ETH`). /cancel — отменить.",
   adminCryptoUpdated: "Крипто-кошелёк обновлён.",
-  adminUpiUpdated: "UPI обновлён.",
+  adminUpiUpdated: "UPI ID обновлён.",
+  adminBinanceUpdated: "Binance ID обновлён.",
   adminCryptoBotTokenUpdated: "Токен Crypto Bot обновлён.",
   adminCryptoBotAssetsUpdated: "Активы Crypto Bot обновлены.",
   adminBtnSetCrypto: "💰  Сменить крипто-кошелёк",
-  adminBtnSetUpi: "💸  Сменить UPI",
+  adminBtnSetUpi: "🇮🇳  Сменить UPI ID",
+  adminBtnSetBinance: "🟡  Сменить Binance ID",
   adminBtnSetCryptoBotToken: "🤖  Токен Crypto Bot",
   adminBtnSetCryptoBotAssets: "🪙  Активы Crypto Bot",
   adminInvalidNumber: "Введите корректное положительное число.",
@@ -407,9 +427,12 @@ const hi: Dict = {
   cryptoTitle: "💰  क्रिप्टो भुगतान  •  USDT BEP20",
   cryptoBody: (addr, amount) =>
     `नीचे दिए पते पर ठीक *${amount}* *USDT (BEP20)* में भेजें:\n\n\`${addr}\`\n\n👆  कॉपी करने के लिए पते पर टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
-  remitlyTitle: "💸  Remitly भुगतान",
-  remitlyBody: (upi, amount) =>
-    `Remitly से *${amount}* इस पते पर भेजें:\n\n\`${upi}\`\n\n👆  कॉपी करने के लिए टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
+  upiTitle: "🇮🇳  UPI भुगतान  •  भारत के लिए",
+  upiBody: (upi, amount) =>
+    `इस UPI ID पर *${amount}* (INR के बराबर) भेजें:\n\n\`${upi}\`\n\n👆  UPI ID कॉपी करने के लिए टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
+  binanceTitle: "🟡  Binance Pay  •  Binance ID से",
+  binanceBody: (binanceId, amount) =>
+    `इस Binance ID पर *Binance Pay* से *${amount}* भेजें:\n\n\`${binanceId}\`\n\n👆  कॉपी करने के लिए टैप करें। Binance ऐप खोलें → *Pay* → *Send* → ID पेस्ट करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
   cryptoBotTitle: "🤖  @CryptoBot से भुगतान",
   cryptoBotBody: (amount, assets) =>
     `कुल: *${amount}*\n\nनीचे *Pay* दबाएँ — Telegram में @CryptoBot खुलेगा और आप इनमें से किसी से भी भुगतान कर सकते हैं: ${assets}.\n\nभुगतान कन्फ़र्म होते ही आपकी की यहाँ अपने आप आ जाएगी।`,
@@ -440,8 +463,9 @@ const hi: Dict = {
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
-    remitly: "💸  Remitly",
     cryptobot: "🤖  CryptoBot (Telegram)",
+    upi: "🇮🇳  UPI (भारत)",
+    binance: "🟡  Binance ID",
   },
   adminOnly: "🔒  यह क्षेत्र केवल एडमिन के लिए है।",
   adminPanel: "🛠  *एडमिन पैनल*",
@@ -470,20 +494,23 @@ const hi: Dict = {
   adminPickGameForView: "कीज़ देखने के लिए गेम चुनें",
   adminPickPeriodForView: (game) => `${game}\n\nअवधि चुनें`,
   adminKeyDeleted: "की हटा दी गई।",
-  adminSettingsBody: (wallet, upi, cbToken, cbAssets) =>
-    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nRemitly UPI:\n\`${upi}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nUPI ID (भारत):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\``,
   adminEnterCrypto: "नया BEP20 वॉलेट पता भेजें। रद्द करने के लिए /cancel।",
-  adminEnterUpi: "नया UPI ID भेजें। रद्द करने के लिए /cancel।",
+  adminEnterUpi: "नया UPI ID (भारत) भेजें। रद्द करने के लिए /cancel।",
+  adminEnterBinance: "नया Binance ID (Binance ऐप से अंकीय Pay ID) भेजें। रद्द करने के लिए /cancel।",
   adminEnterCryptoBotToken:
     "Crypto Pay API टोकन भेजें (@CryptoBot → Crypto Pay → Create App से लें)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
   adminEnterCryptoBotAssets:
     "अल्पविराम से अलग सूची भेजें (जैसे `USDT,TON,BTC,ETH`)। रद्द करने के लिए /cancel।",
   adminCryptoUpdated: "क्रिप्टो वॉलेट अपडेट हुआ।",
-  adminUpiUpdated: "UPI अपडेट हुआ।",
+  adminUpiUpdated: "UPI ID अपडेट हुआ।",
+  adminBinanceUpdated: "Binance ID अपडेट हुआ।",
   adminCryptoBotTokenUpdated: "Crypto Bot टोकन अपडेट हुआ।",
   adminCryptoBotAssetsUpdated: "Crypto Bot एसेट्स अपडेट हुए।",
   adminBtnSetCrypto: "💰  क्रिप्टो वॉलेट सेट करें",
-  adminBtnSetUpi: "💸  UPI सेट करें",
+  adminBtnSetUpi: "🇮🇳  UPI ID सेट करें",
+  adminBtnSetBinance: "🟡  Binance ID सेट करें",
   adminBtnSetCryptoBotToken: "🤖  Crypto Bot टोकन",
   adminBtnSetCryptoBotAssets: "🪙  Crypto Bot एसेट्स",
   adminInvalidNumber: "कृपया वैध सकारात्मक संख्या भेजें।",

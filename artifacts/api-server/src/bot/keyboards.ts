@@ -128,7 +128,8 @@ export function paymentsKb(
   return new InlineKeyboard()
     .text(tr.paymentLabel.cryptobot, `buy:pay:${game}:${period}:cryptobot`).row()
     .text(tr.paymentLabel.crypto, `buy:pay:${game}:${period}:crypto`).row()
-    .text(tr.paymentLabel.remitly, `buy:pay:${game}:${period}:remitly`).row()
+    .text(tr.paymentLabel.upi, `buy:pay:${game}:${period}:upi`).row()
+    .text(tr.paymentLabel.binance, `buy:pay:${game}:${period}:binance`).row()
     .text(tr.btnBack, `buy:game:${game}`);
 }
 
@@ -215,6 +216,7 @@ export function adminSettingsKb(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(tr.adminBtnSetCrypto, "adm:set:crypto").row()
     .text(tr.adminBtnSetUpi, "adm:set:upi").row()
+    .text(tr.adminBtnSetBinance, "adm:set:binance").row()
     .text(tr.adminBtnSetCryptoBotToken, "adm:set:cbtoken").row()
     .text(tr.adminBtnSetCryptoBotAssets, "adm:set:cbassets").row()
     .text(tr.adminBack, "adm:home");

@@ -15,7 +15,7 @@ export type GameId =
 
 export type PeriodId = "day" | "week" | "month";
 
-export type PaymentMethod = "crypto" | "remitly" | "cryptobot";
+export type PaymentMethod = "crypto" | "cryptobot" | "upi" | "binance";
 
 export type GameGroup = "bgmi" | "pubg" | "codm" | "ml" | "8bp" | "android";
 

@@ -200,6 +200,7 @@ const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number
 const DEFAULT_SETTINGS: Record<string, string> = {
   crypto_wallet: "0x9c1b4e6d1bcba589be0cddd039d03b3644664551",
   upi_id: "your-upi@bank",
+  binance_id: "123456789",
   // Crypto Pay (https://t.me/CryptoBot) API token. Set via /adm or env.
   cryptobot_token: process.env["CRYPTOBOT_TOKEN"] ?? "",
   // Comma-separated list of crypto assets the user can pay with.
@@ -506,6 +507,10 @@ export function getCryptoWallet(): string {
 
 export function getUpiId(): string {
   return getSetting("upi_id") || "";
+}
+
+export function getBinanceId(): string {
+  return getSetting("binance_id") || "";
 }
 
 export function getCryptoBotToken(): string {

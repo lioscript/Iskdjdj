@@ -8,6 +8,7 @@ export type AdminState =
   | { kind: "await_keys"; game: GameId; period: PeriodId }
   | { kind: "await_crypto" }
   | { kind: "await_upi" }
+  | { kind: "await_binance" }
   | { kind: "await_cbtoken" }
   | { kind: "await_cbassets" };
 

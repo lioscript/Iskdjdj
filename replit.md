@@ -28,7 +28,7 @@ the same Node.js process that runs the small Express API.
 - Main menu shows the WinStar poster (`assets/poster.jpeg`); other
   menus are text-only and old menus are deleted to avoid duplicates.
 - Buy flow: Game → (PUBG region) → Period → Crypto Bot (auto) /
-  Crypto BEP20 / Remitly UPI →
+  Crypto BEP20 / UPI (India) / Binance ID →
   - **Crypto Bot (@CryptoBot)**: a fiat-priced (USD) invoice is created
     on the fly via the Crypto Pay API; the user taps a `Pay` button
     that opens the Crypto Bot mini app, then taps `Check payment`.
@@ -40,13 +40,14 @@ the same Node.js process that runs the small Express API.
        pending orders.
     Both paths funnel through `bot/delivery.ts:deliverPaidOrder`,
     which is idempotent via a SQLite transaction.
-  - **Crypto BEP20 / Remitly UPI**: user taps "I have paid" → admin
-    gets the order with Approve / Reject buttons → on approve, a key
-    is automatically pulled from inventory, hard-deleted from stock,
-    and delivered to the user.
+  - **Crypto BEP20 / UPI (India) / Binance ID**: user taps
+    "I have paid" → admin gets the order with Approve / Reject
+    buttons → on approve, a key is automatically pulled from
+    inventory, hard-deleted from stock, and delivered to the user.
 - Admin panel via `/adm` (only for IDs in `ADMIN_TELEGRAM_IDS`):
   statistics, prices, add keys (bulk, one per line), view/delete keys,
-  set crypto wallet, UPI ID, Crypto Pay token, accepted assets list.
+  set crypto wallet, UPI ID, Binance ID, Crypto Pay token, accepted
+  assets list.
 
 ### Required secrets
 
