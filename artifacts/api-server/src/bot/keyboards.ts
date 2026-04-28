@@ -13,11 +13,14 @@ import {
 import { LANGS, LANG_LABELS, t, type Lang } from "./i18n";
 import {
   countAvailableKeys,
-  getPrice,
+  getPriceForMethod,
+  getPriceInr,
+  getPriceUsd,
   listAvailableKeys,
   listBotAdmins,
   type BotAdminRow,
 } from "./db";
+import type { PaymentMethod } from "./catalog";
 
 export function languagePickerKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -103,40 +106,57 @@ export function androidVariantsKb(lang: Lang): InlineKeyboard {
   return variantsKb(lang, ANDROID_VARIANTS);
 }
 
-function fmtUsd(n: number): string {
+export function fmtUsd(n: number): string {
   return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
 }
 
-export function periodsKb(lang: Lang, game: GameId): InlineKeyboard {
+export function fmtInr(n: number): string {
+  return `₹${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
+}
+
+// Step 2 of the buy flow: pick a payment method for the chosen game.
+// We show every method — even if the price for a particular currency
+// hasn't been set, we still let the user open the period list (where
+// the missing prices will simply be hidden).
+export function paymentsKbForGame(lang: Lang, game: GameId): InlineKeyboard {
   const tr = t(lang);
-  const kb = new InlineKeyboard();
-  for (const p of PERIODS) {
-    const price = getPrice(game, p);
-    const label =
-      price !== null
-        ? tr.periodWithPrice(p, fmtUsd(price))
-        : tr.periodLabel[p];
-    kb.text(label, `buy:period:${game}:${p}`).row();
-  }
-  // Back to the variant picker for the group, else games list
+  const kb = new InlineKeyboard()
+    .text(tr.paymentLabel.cryptobot, `buy:method:${game}:cryptobot`).row()
+    .text(tr.paymentLabel.crypto, `buy:method:${game}:crypto`).row()
+    .text(tr.paymentLabel.upi, `buy:method:${game}:upi`).row()
+    .text(tr.paymentLabel.binance, `buy:method:${game}:binance`).row();
+  // Back to the variant picker for the group, else games list.
   const group = getGameGroup(game);
   const groupPicker = group ? GROUP_PICKER_CALLBACK[group] : undefined;
   kb.text(tr.btnBack, groupPicker ?? "buy:games");
   return kb;
 }
 
-export function paymentsKb(
+// Step 3 of the buy flow: pick a period. Prices are shown in the
+// currency that matches the previously chosen payment method (UPI →
+// INR, otherwise USD). Periods with no price set for that currency
+// are still listed — the handler will refuse them with `noPriceYet`.
+export function periodsKb(
   lang: Lang,
   game: GameId,
-  period: PeriodId,
+  method: PaymentMethod,
 ): InlineKeyboard {
   const tr = t(lang);
-  return new InlineKeyboard()
-    .text(tr.paymentLabel.cryptobot, `buy:pay:${game}:${period}:cryptobot`).row()
-    .text(tr.paymentLabel.crypto, `buy:pay:${game}:${period}:crypto`).row()
-    .text(tr.paymentLabel.upi, `buy:pay:${game}:${period}:upi`).row()
-    .text(tr.paymentLabel.binance, `buy:pay:${game}:${period}:binance`).row()
-    .text(tr.btnBack, `buy:game:${game}`);
+  const kb = new InlineKeyboard();
+  for (const p of PERIODS) {
+    const { amount, currency } = getPriceForMethod(game, p, method);
+    const label =
+      amount !== null
+        ? tr.periodWithPrice(
+            p,
+            currency === "inr" ? fmtInr(amount) : fmtUsd(amount),
+          )
+        : tr.periodLabel[p];
+    kb.text(label, `buy:order:${game}:${method}:${p}`).row();
+  }
+  // Back to the payment-method picker.
+  kb.text(tr.btnBack, `buy:game:${game}`);
+  return kb;
 }
 
 export function payConfirmKb(lang: Lang, orderId: number): InlineKeyboard {
@@ -191,8 +211,14 @@ export function adminPeriodsKb(
   for (const p of PERIODS) {
     let suffix = "";
     if (intent === "price") {
-      const price = getPrice(game, p);
-      suffix = price !== null ? `  —  ${fmtUsd(price)}` : "";
+      // Show both currencies side by side so the admin can see at a
+      // glance which ones are missing.
+      const u = getPriceUsd(game, p);
+      const i = getPriceInr(game, p);
+      const parts: string[] = [];
+      if (u !== null) parts.push(fmtUsd(u));
+      if (i !== null) parts.push(fmtInr(i));
+      suffix = parts.length ? `  —  ${parts.join("  /  ")}` : "";
     } else {
       const n = countAvailableKeys(game, p);
       suffix = `  —  ${n} in stock`;
@@ -201,6 +227,20 @@ export function adminPeriodsKb(
   }
   kb.text(tr.adminBack, `adm:${intent}`);
   return kb;
+}
+
+// After the admin picks a (game, period) for pricing, ask which
+// currency they want to set.
+export function adminPriceCurrencyKb(
+  lang: Lang,
+  game: GameId,
+  period: PeriodId,
+): InlineKeyboard {
+  const tr = t(lang);
+  return new InlineKeyboard()
+    .text(tr.adminBtnPriceUsd, `adm:price:cur:${game}:${period}:usd`).row()
+    .text(tr.adminBtnPriceInr, `adm:price:cur:${game}:${period}:inr`).row()
+    .text(tr.adminBack, `adm:price:game:${game}`);
 }
 
 export function adminViewKeysKb(

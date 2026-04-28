@@ -123,6 +123,24 @@ db.exec(`
   if (!have.has("reminded_1h")) {
     db.exec("ALTER TABLE orders ADD COLUMN reminded_1h INTEGER NOT NULL DEFAULT 0");
   }
+  // INR amount column for orders paid via UPI. Existing rows are USD
+  // and stay with NULL here; new UPI orders set amount_inr instead.
+  if (!have.has("amount_inr")) {
+    db.exec("ALTER TABLE orders ADD COLUMN amount_inr REAL");
+  }
+}
+
+// `prices` had only USD prices originally. We add an `amount_inr`
+// column so admins can set per-period INR prices (used when the user
+// pays via UPI).
+{
+  const cols = db
+    .prepare("PRAGMA table_info(prices)")
+    .all() as Array<{ name: string }>;
+  const have = new Set(cols.map((c) => c.name));
+  if (!have.has("amount_inr")) {
+    db.exec("ALTER TABLE prices ADD COLUMN amount_inr REAL");
+  }
 }
 db.exec(
   "CREATE INDEX IF NOT EXISTS idx_orders_cryptobot ON orders(cryptobot_invoice_id) WHERE cryptobot_invoice_id IS NOT NULL",
@@ -296,21 +314,65 @@ export function countUsers(): number {
 }
 
 // ---------- prices ----------
-const getPriceStmt = db.prepare<[string, string], { amount_usd: number }>(
-  "SELECT amount_usd FROM prices WHERE game = ? AND period = ?",
-);
-const setPriceStmt = db.prepare(
+//
+// Each (game, period) row can hold up to two prices: one in USD and
+// one in INR. USD is used for crypto / Crypto Bot / Binance payments.
+// INR is used for UPI payments. Either column can be NULL — the bot
+// will treat that as "this currency is not available for that game/
+// period" and hide the corresponding payment method.
+
+const getPriceRowStmt = db.prepare<
+  [string, string],
+  { amount_usd: number | null; amount_inr: number | null }
+>("SELECT amount_usd, amount_inr FROM prices WHERE game = ? AND period = ?");
+const setPriceUsdStmt = db.prepare(
   `INSERT INTO prices (game, period, amount_usd) VALUES (?, ?, ?)
    ON CONFLICT(game, period) DO UPDATE SET amount_usd = excluded.amount_usd`,
 );
+const setPriceInrStmt = db.prepare(
+  `INSERT INTO prices (game, period, amount_inr) VALUES (?, ?, ?)
+   ON CONFLICT(game, period) DO UPDATE SET amount_inr = excluded.amount_inr`,
+);
 
-export function getPrice(game: GameId, period: PeriodId): number | null {
-  const row = getPriceStmt.get(game, period);
-  return row ? row.amount_usd : null;
+export type PriceCurrency = "usd" | "inr";
+
+export function getPriceUsd(game: GameId, period: PeriodId): number | null {
+  const row = getPriceRowStmt.get(game, period);
+  return row && row.amount_usd != null ? row.amount_usd : null;
 }
 
-export function setPrice(game: GameId, period: PeriodId, amount: number): void {
-  setPriceStmt.run(game, period, amount);
+export function getPriceInr(game: GameId, period: PeriodId): number | null {
+  const row = getPriceRowStmt.get(game, period);
+  return row && row.amount_inr != null ? row.amount_inr : null;
+}
+
+export function setPriceUsd(
+  game: GameId,
+  period: PeriodId,
+  amount: number,
+): void {
+  setPriceUsdStmt.run(game, period, amount);
+}
+
+export function setPriceInr(
+  game: GameId,
+  period: PeriodId,
+  amount: number,
+): void {
+  setPriceInrStmt.run(game, period, amount);
+}
+
+// Returns the price in the right currency for the given payment method
+// (UPI → INR, everything else → USD). null if that currency isn't set.
+export function getPriceForMethod(
+  game: GameId,
+  period: PeriodId,
+  method: PaymentMethod,
+): { amount: number | null; currency: PriceCurrency } {
+  if (method === "upi") {
+    return { amount: getPriceInr(game, period), currency: "inr" };
+  }
+  return { amount: getPriceUsd(game, period), currency: "usd" };
 }
 
 // ---------- keys ----------
@@ -405,7 +467,11 @@ export type OrderRow = {
   game: GameId;
   period: PeriodId;
   payment_method: PaymentMethod;
+  // For UPI orders, `amount_usd` is 0 and `amount_inr` holds the price.
+  // For all other methods, `amount_usd` holds the price and
+  // `amount_inr` is NULL.
   amount_usd: number;
+  amount_inr: number | null;
   status: "pending" | "delivered" | "rejected";
   delivered_key_id: number | null;
   created_at: number;
@@ -421,8 +487,8 @@ export type OrderRow = {
 export type ReminderKind = "3d" | "1d" | "1h";
 
 const insertOrderStmt = db.prepare(
-  `INSERT INTO orders (user_telegram_id, game, period, payment_method, amount_usd, status, created_at)
-   VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+  `INSERT INTO orders (user_telegram_id, game, period, payment_method, amount_usd, amount_inr, status, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
 );
 const getOrderStmt = db.prepare<[number], OrderRow>(
   "SELECT * FROM orders WHERE id = ?",
@@ -445,7 +511,9 @@ export function createOrder(args: {
   game: GameId;
   period: PeriodId;
   paymentMethod: PaymentMethod;
+  // Exactly one of these two should be > 0 depending on the method.
   amountUsd: number;
+  amountInr?: number | null;
 }): number {
   const info = insertOrderStmt.run(
     args.userTelegramId,
@@ -453,6 +521,7 @@ export function createOrder(args: {
     args.period,
     args.paymentMethod,
     args.amountUsd,
+    args.amountInr ?? null,
     Date.now(),
   );
   return Number(info.lastInsertRowid);
@@ -485,13 +554,21 @@ export function listPendingCryptobotOrders(): OrderRow[] {
   return listPendingCryptobotStmt.all() as OrderRow[];
 }
 
-export function getStats(): { sales: number; revenue: number } {
+export function getStats(): {
+  sales: number;
+  revenueUsd: number;
+  revenueInr: number;
+} {
   const row = db
     .prepare(
-      "SELECT COUNT(*) as n, COALESCE(SUM(amount_usd), 0) as r FROM orders WHERE status = 'delivered'",
+      `SELECT COUNT(*) as n,
+              COALESCE(SUM(amount_usd), 0) as ru,
+              COALESCE(SUM(amount_inr), 0) as ri
+       FROM orders
+       WHERE status = 'delivered'`,
     )
-    .get() as { n: number; r: number };
-  return { sales: row.n, revenue: row.r };
+    .get() as { n: number; ru: number; ri: number };
+  return { sales: row.n, revenueUsd: row.ru, revenueInr: row.ri };
 }
 
 // ---------- settings ----------

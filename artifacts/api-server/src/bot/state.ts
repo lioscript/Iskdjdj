@@ -4,7 +4,12 @@ import type { GameId, PeriodId } from "./catalog";
 // Cleared on /cancel, /start, /adm, or after the input is consumed.
 
 export type AdminState =
-  | { kind: "await_price"; game: GameId; period: PeriodId }
+  | {
+      kind: "await_price";
+      game: GameId;
+      period: PeriodId;
+      currency: "usd" | "inr";
+    }
   | { kind: "await_keys"; game: GameId; period: PeriodId }
   | { kind: "await_crypto" }
   | { kind: "await_upi" }

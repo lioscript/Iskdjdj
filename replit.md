@@ -27,8 +27,13 @@ the same Node.js process that runs the small Express API.
 - Multi-language UX: English, Русский, हिन्दी.
 - Main menu shows the WinStar poster (`assets/poster.jpeg`); other
   menus are text-only and old menus are deleted to avoid duplicates.
-- Buy flow: Game → (PUBG region) → Period → Crypto Bot (auto) /
-  Crypto BEP20 / UPI (India) / Binance ID →
+- Buy flow: Game → (PUBG region) → Payment method
+  (Crypto Bot / Crypto BEP20 / UPI / Binance ID) → Period →
+- Dual currency: prices per (game, period) can be set in **USD**
+  (used for crypto, Crypto Bot, Binance) and/or **INR** (used for
+  UPI). Admin sets each currency separately under
+  `/adm` → Prices → game → period → currency. Stats show both
+  USD and INR revenue side by side.
   - **Crypto Bot (@CryptoBot)**: a fiat-priced (USD) invoice is created
     on the fly via the Crypto Pay API; the user taps a `Pay` button
     that opens the Crypto Bot mini app, then taps `Check payment`.

@@ -71,10 +71,24 @@ type Dict = {
   adminViewKeys: string;
   adminSettings: string;
   adminBack: string;
-  adminStatsBody: (sales: number, profit: string, users: number) => string;
+  adminStatsBody: (
+    sales: number,
+    revenueUsd: string,
+    revenueInr: string,
+    users: number,
+  ) => string;
   adminPickGameForPrice: string;
   adminPickPeriodForPrice: (game: string) => string;
-  adminEnterPrice: (game: string, period: string, current: string) => string;
+  adminPickPriceCurrency: (
+    game: string,
+    period: string,
+    currentUsd: string,
+    currentInr: string,
+  ) => string;
+  adminBtnPriceUsd: string;
+  adminBtnPriceInr: string;
+  adminEnterPriceUsd: (game: string, period: string, current: string) => string;
+  adminEnterPriceInr: (game: string, period: string, current: string) => string;
   adminPriceUpdated: (game: string, period: string, price: string) => string;
   adminPickGameForKeys: string;
   adminPickPeriodForKeys: (game: string) => string;
@@ -192,7 +206,7 @@ const en: Dict = {
     `Send exactly *${amount}* in *USDT (BEP20)* to the address below:\n\n\`${addr}\`\n\n👆  Tap the address to copy. After paying, press “⚡  I have paid”.`,
   upiTitle: "🇮🇳  UPI payment  •  Indian payments",
   upiBody: (upi, amount) =>
-    `Send *${amount}* (in INR equivalent) via UPI to:\n\n\`${upi}\`\n\n👆  Tap the UPI ID to copy. After paying, press “⚡  I have paid”.`,
+    `Send *${amount}* via UPI to:\n\n\`${upi}\`\n\n👆  Tap the UPI ID to copy. After paying, press “⚡  I have paid”.`,
   binanceTitle: "🟡  Binance Pay  •  pay by Binance ID",
   binanceBody: (binanceId, amount) =>
     `Send *${amount}* via *Binance Pay* to this Binance ID:\n\n\`${binanceId}\`\n\n👆  Tap to copy. Open Binance app → *Pay* → *Send* → paste the ID. After paying, press “⚡  I have paid”.`,
@@ -237,12 +251,18 @@ const en: Dict = {
   adminViewKeys: "🗂  View / delete keys",
   adminSettings: "⚙  Payment settings",
   adminBack: "⬅  Back",
-  adminStatsBody: (sales, profit, users) =>
-    `📊  *Statistics*\n\n🔑  Sales delivered: *${sales}*\n💰  Gross revenue: *${profit}*\n👥  Registered users: *${users}*`,
+  adminStatsBody: (sales, revenueUsd, revenueInr, users) =>
+    `📊  *Statistics*\n\n🔑  Sales delivered: *${sales}*\n💵  Revenue (USD): *${revenueUsd}*\n🇮🇳  Revenue (INR): *${revenueInr}*\n👥  Registered users: *${users}*`,
   adminPickGameForPrice: "Pick a game to set its prices",
   adminPickPeriodForPrice: (game) => `${game}\n\nPick a period`,
-  adminEnterPrice: (game, period, current) =>
-    `${game}  •  ${period}\n\nCurrent: ${current}\n\nSend the new price as a number (USD). Send /cancel to abort.`,
+  adminPickPriceCurrency: (game, period, currentUsd, currentInr) =>
+    `${game}  •  ${period}\n\nCurrent USD: ${currentUsd}\nCurrent INR: ${currentInr}\n\nIn which currency do you want to set the price?`,
+  adminBtnPriceUsd: "💵  USD",
+  adminBtnPriceInr: "🇮🇳  INR",
+  adminEnterPriceUsd: (game, period, current) =>
+    `${game}  •  ${period}\n\nCurrent USD price: ${current}\n\nSend the new price as a number in *USD*. Send /cancel to abort.`,
+  adminEnterPriceInr: (game, period, current) =>
+    `${game}  •  ${period}\n\nCurrent INR price: ${current}\n\nSend the new price as a number in *INR (₹)*. Send /cancel to abort.`,
   adminPriceUpdated: (game, period, price) =>
     `Updated  ${game}  •  ${period}  →  ${price}`,
   adminPickGameForKeys: "Pick a game to add keys for",
@@ -337,7 +357,7 @@ const ru: Dict = {
     `Отправьте ровно *${amount}* в *USDT (BEP20)* на адрес ниже:\n\n\`${addr}\`\n\n👆  Нажмите на адрес, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
   upiTitle: "🇮🇳  Оплата UPI  •  для Индии",
   upiBody: (upi, amount) =>
-    `Отправьте *${amount}* (в эквиваленте INR) через UPI на:\n\n\`${upi}\`\n\n👆  Нажмите на UPI ID, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
+    `Отправьте *${amount}* через UPI на:\n\n\`${upi}\`\n\n👆  Нажмите на UPI ID, чтобы скопировать. После оплаты нажмите «⚡  Я оплатил».`,
   binanceTitle: "🟡  Binance Pay  •  оплата по Binance ID",
   binanceBody: (binanceId, amount) =>
     `Отправьте *${amount}* через *Binance Pay* на этот Binance ID:\n\n\`${binanceId}\`\n\n👆  Нажмите, чтобы скопировать. Откройте Binance → *Pay* → *Send* → вставьте ID. После оплаты нажмите «⚡  Я оплатил».`,
@@ -383,12 +403,18 @@ const ru: Dict = {
   adminViewKeys: "🗂  Список / удалить ключи",
   adminSettings: "⚙  Реквизиты оплаты",
   adminBack: "⬅  Назад",
-  adminStatsBody: (sales, profit, users) =>
-    `📊  *Статистика*\n\n🔑  Выдано продаж: *${sales}*\n💰  Выручка: *${profit}*\n👥  Пользователей: *${users}*`,
+  adminStatsBody: (sales, revenueUsd, revenueInr, users) =>
+    `📊  *Статистика*\n\n🔑  Выдано продаж: *${sales}*\n💵  Выручка (USD): *${revenueUsd}*\n🇮🇳  Выручка (INR): *${revenueInr}*\n👥  Пользователей: *${users}*`,
   adminPickGameForPrice: "Выберите игру для установки цены",
   adminPickPeriodForPrice: (game) => `${game}\n\nВыберите период`,
-  adminEnterPrice: (game, period, current) =>
-    `${game}  •  ${period}\n\nТекущая цена: ${current}\n\nОтправьте новую цену числом (USD). /cancel — отменить.`,
+  adminPickPriceCurrency: (game, period, currentUsd, currentInr) =>
+    `${game}  •  ${period}\n\nТекущая цена USD: ${currentUsd}\nТекущая цена INR: ${currentInr}\n\nВ какой валюте установить цену?`,
+  adminBtnPriceUsd: "💵  USD",
+  adminBtnPriceInr: "🇮🇳  INR",
+  adminEnterPriceUsd: (game, period, current) =>
+    `${game}  •  ${period}\n\nТекущая цена в USD: ${current}\n\nОтправьте новую цену числом в *USD*. /cancel — отменить.`,
+  adminEnterPriceInr: (game, period, current) =>
+    `${game}  •  ${period}\n\nТекущая цена в INR: ${current}\n\nОтправьте новую цену числом в *INR (₹)*. /cancel — отменить.`,
   adminPriceUpdated: (game, period, price) =>
     `Обновлено  ${game}  •  ${period}  →  ${price}`,
   adminPickGameForKeys: "Выберите игру, для которой добавить ключи",
@@ -483,7 +509,7 @@ const hi: Dict = {
     `नीचे दिए पते पर ठीक *${amount}* *USDT (BEP20)* में भेजें:\n\n\`${addr}\`\n\n👆  कॉपी करने के लिए पते पर टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
   upiTitle: "🇮🇳  UPI भुगतान  •  भारत के लिए",
   upiBody: (upi, amount) =>
-    `इस UPI ID पर *${amount}* (INR के बराबर) भेजें:\n\n\`${upi}\`\n\n👆  UPI ID कॉपी करने के लिए टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
+    `इस UPI ID पर *${amount}* भेजें:\n\n\`${upi}\`\n\n👆  UPI ID कॉपी करने के लिए टैप करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
   binanceTitle: "🟡  Binance Pay  •  Binance ID से",
   binanceBody: (binanceId, amount) =>
     `इस Binance ID पर *Binance Pay* से *${amount}* भेजें:\n\n\`${binanceId}\`\n\n👆  कॉपी करने के लिए टैप करें। Binance ऐप खोलें → *Pay* → *Send* → ID पेस्ट करें। भुगतान के बाद “⚡  मैंने भुगतान किया” दबाएँ।`,
@@ -529,12 +555,18 @@ const hi: Dict = {
   adminViewKeys: "🗂  कीज़ देखें / हटाएँ",
   adminSettings: "⚙  भुगतान सेटिंग्स",
   adminBack: "⬅  वापस",
-  adminStatsBody: (sales, profit, users) =>
-    `📊  *आँकड़े*\n\n🔑  डिलीवर हुई बिक्री: *${sales}*\n💰  कुल राजस्व: *${profit}*\n👥  पंजीकृत उपयोगकर्ता: *${users}*`,
+  adminStatsBody: (sales, revenueUsd, revenueInr, users) =>
+    `📊  *आँकड़े*\n\n🔑  डिलीवर हुई बिक्री: *${sales}*\n💵  राजस्व (USD): *${revenueUsd}*\n🇮🇳  राजस्व (INR): *${revenueInr}*\n👥  पंजीकृत उपयोगकर्ता: *${users}*`,
   adminPickGameForPrice: "कीमत सेट करने के लिए गेम चुनें",
   adminPickPeriodForPrice: (game) => `${game}\n\nअवधि चुनें`,
-  adminEnterPrice: (game, period, current) =>
-    `${game}  •  ${period}\n\nवर्तमान: ${current}\n\nनई कीमत संख्या में भेजें (USD)। रद्द करने के लिए /cancel भेजें।`,
+  adminPickPriceCurrency: (game, period, currentUsd, currentInr) =>
+    `${game}  •  ${period}\n\nवर्तमान USD: ${currentUsd}\nवर्तमान INR: ${currentInr}\n\nकिस मुद्रा में मूल्य सेट करें?`,
+  adminBtnPriceUsd: "💵  USD",
+  adminBtnPriceInr: "🇮🇳  INR",
+  adminEnterPriceUsd: (game, period, current) =>
+    `${game}  •  ${period}\n\nवर्तमान USD मूल्य: ${current}\n\nनई कीमत संख्या में *USD* में भेजें। रद्द करने के लिए /cancel।`,
+  adminEnterPriceInr: (game, period, current) =>
+    `${game}  •  ${period}\n\nवर्तमान INR मूल्य: ${current}\n\nनई कीमत संख्या में *INR (₹)* में भेजें। रद्द करने के लिए /cancel।`,
   adminPriceUpdated: (game, period, price) =>
     `अपडेट हुआ  ${game}  •  ${period}  →  ${price}`,
   adminPickGameForKeys: "कीज़ जोड़ने के लिए गेम चुनें",

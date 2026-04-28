@@ -10,7 +10,8 @@ import {
   getCryptoBotToken,
   getCryptoWallet,
   getOrder,
-  getPrice,
+  getPriceInr,
+  getPriceUsd,
   getStats,
   getUpiId,
   getUser,
@@ -19,7 +20,8 @@ import {
   rejectOrder,
   removeBotAdminById,
   reserveKeyForOrder,
-  setPrice,
+  setPriceInr,
+  setPriceUsd,
   setSetting,
   upsertUser,
 } from "../db";
@@ -30,8 +32,10 @@ import {
   adminListAdminsKb,
   adminPanelKb,
   adminPeriodsKb,
+  adminPriceCurrencyKb,
   adminSettingsKb,
   adminViewKeysKb,
+  fmtInr,
   mainMenuKb,
 } from "../keyboards";
 import { showMenuText } from "../ui";
@@ -84,7 +88,12 @@ async function showStats(ctx: Context): Promise<void> {
   const lang = getLang(ctx);
   const tr = t(lang);
   const s = getStats();
-  const text = tr.adminStatsBody(s.sales, fmtUsd(s.revenue), countUsers());
+  const text = tr.adminStatsBody(
+    s.sales,
+    fmtUsd(s.revenueUsd),
+    fmtInr(s.revenueInr),
+    countUsers(),
+  );
   await showMenuText(ctx, text, adminPanelKb(lang));
 }
 
@@ -365,6 +374,7 @@ export function registerAdminHandlers(bot: Bot): void {
     );
   });
 
+  // Step: pick currency (USD/INR) for the (game, period) being priced.
   bot.callbackQuery(/^adm:price:period:([^:]+):([^:]+)$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
     const g = ctx.match![1]!;
@@ -372,19 +382,67 @@ export function registerAdminHandlers(bot: Bot): void {
     if (!isGameId(g) || !isPeriodId(p)) { await ctx.answerCallbackQuery(); return; }
     const lang = getLang(ctx);
     const tr = t(lang);
-    setState(ctx.chat!.id, { kind: "await_price", game: g, period: p });
-    const current = getPrice(g, p);
+    const currentUsd = getPriceUsd(g, p);
+    const currentInr = getPriceInr(g, p);
     await ctx.answerCallbackQuery();
     await showMenuText(
       ctx,
-      tr.adminEnterPrice(
+      tr.adminPickPriceCurrency(
         tr.game[g],
         tr.periodLabel[p],
-        current !== null ? fmtUsd(current) : "—",
+        currentUsd !== null ? fmtUsd(currentUsd) : "—",
+        currentInr !== null ? fmtInr(currentInr) : "—",
       ),
-      adminPanelKb(lang),
+      adminPriceCurrencyKb(lang, g, p),
     );
   });
+
+  // Step: now ask for the actual amount in the chosen currency.
+  bot.callbackQuery(
+    /^adm:price:cur:([^:]+):([^:]+):(usd|inr)$/,
+    async (ctx) => {
+      if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+      const g = ctx.match![1]!;
+      const p = ctx.match![2]!;
+      const cur = ctx.match![3] as "usd" | "inr";
+      if (!isGameId(g) || !isPeriodId(p)) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      const lang = getLang(ctx);
+      const tr = t(lang);
+      setState(ctx.chat!.id, {
+        kind: "await_price",
+        game: g,
+        period: p,
+        currency: cur,
+      });
+      await ctx.answerCallbackQuery();
+      if (cur === "usd") {
+        const current = getPriceUsd(g, p);
+        await showMenuText(
+          ctx,
+          tr.adminEnterPriceUsd(
+            tr.game[g],
+            tr.periodLabel[p],
+            current !== null ? fmtUsd(current) : "—",
+          ),
+          adminPanelKb(lang),
+        );
+      } else {
+        const current = getPriceInr(g, p);
+        await showMenuText(
+          ctx,
+          tr.adminEnterPriceInr(
+            tr.game[g],
+            tr.periodLabel[p],
+            current !== null ? fmtInr(current) : "—",
+          ),
+          adminPanelKb(lang),
+        );
+      }
+    },
+  );
 
   // Add keys
   bot.callbackQuery(/^adm:addkeys$/, async (ctx) => {
@@ -507,14 +565,19 @@ export function registerAdminHandlers(bot: Bot): void {
         await showMenuText(ctx, tr.adminInvalidNumber, adminPanelKb(lang));
         return;
       }
-      setPrice(state.game, state.period, n);
+      if (state.currency === "inr") {
+        setPriceInr(state.game, state.period, n);
+      } else {
+        setPriceUsd(state.game, state.period, n);
+      }
+      const formatted = state.currency === "inr" ? fmtInr(n) : fmtUsd(n);
       clearState(ctx.chat.id);
       await showMenuText(
         ctx,
         tr.adminPriceUpdated(
           tr.game[state.game],
           tr.periodLabel[state.period],
-          fmtUsd(n),
+          formatted,
         ),
         adminPanelKb(lang),
       );

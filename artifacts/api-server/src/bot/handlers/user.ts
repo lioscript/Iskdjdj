@@ -6,7 +6,7 @@ import {
   getCryptoBotAssets,
   getCryptoWallet,
   getOrder,
-  getPrice,
+  getPriceForMethod,
   getResolvedBotAdminTelegramIds,
   getUpiId,
   getUser,
@@ -28,13 +28,14 @@ import {
   adminOrderKb,
   androidVariantsKb,
   codmVariantsKb,
+  fmtInr,
   gamesKb,
   languagePickerKb,
   mainMenuKb,
   mlbbVariantsKb,
   payConfirmKb,
   payCryptoBotKb,
-  paymentsKb,
+  paymentsKbForGame,
   periodsKb,
   pubgVariantsKb,
 } from "../keyboards";
@@ -132,27 +133,28 @@ async function showAndroid(ctx: Context): Promise<void> {
   await showMenuText(ctx, tr.pickAndroidVariant, androidVariantsKb(lang));
 }
 
-async function showPeriods(ctx: Context, game: GameId): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
-  const tr = t(lang);
-  const header = `${tr.game[game]}\n\n${tr.pickPeriod}`;
-  await showMenuText(ctx, header, periodsKb(lang, game));
-}
-
-async function showPayments(
+// Step 2: pick a payment method for a given game.
+async function showPaymentsForGame(
   ctx: Context,
   game: GameId,
-  period: PeriodId,
 ): Promise<void> {
   const { lang } = getOrCreateUser(ctx);
   const tr = t(lang);
-  const price = getPrice(game, period);
-  if (price === null) {
-    await showMenuText(ctx, tr.noPriceYet, mainMenuKb(lang));
-    return;
-  }
-  const header = `${tr.game[game]}  •  ${tr.periodLabel[period]}\n${fmtUsd(price)}\n\n${tr.pickPayment}`;
-  await showMenuText(ctx, header, paymentsKb(lang, game, period));
+  const header = `${tr.game[game]}\n\n${tr.pickPayment}`;
+  await showMenuText(ctx, header, paymentsKbForGame(lang, game));
+}
+
+// Step 3: pick a period (priced in the right currency for the chosen
+// payment method).
+async function showPeriodsForMethod(
+  ctx: Context,
+  game: GameId,
+  method: PaymentMethod,
+): Promise<void> {
+  const { lang } = getOrCreateUser(ctx);
+  const tr = t(lang);
+  const header = `${tr.game[game]}  •  ${tr.paymentLabel[method]}\n\n${tr.pickPeriod}`;
+  await showMenuText(ctx, header, periodsKb(lang, game, method));
 }
 
 async function startPayment(
@@ -165,8 +167,8 @@ async function startPayment(
   if (!from) return;
   const { lang } = getOrCreateUser(ctx);
   const tr = t(lang);
-  const price = getPrice(game, period);
-  if (price === null) {
+  const { amount, currency } = getPriceForMethod(game, period, method);
+  if (amount === null) {
     await showMenuText(ctx, tr.noPriceYet, mainMenuKb(lang));
     return;
   }
@@ -179,7 +181,11 @@ async function startPayment(
   // Crypto Bot needs a configured token before we even create the order,
   // otherwise the user gets a dangling pending row with no pay link.
   if (method === "cryptobot" && !cbIsConfigured()) {
-    await showMenuText(ctx, tr.cryptoBotNotConfigured, paymentsKb(lang, game, period));
+    await showMenuText(
+      ctx,
+      tr.cryptoBotNotConfigured,
+      periodsKb(lang, game, method),
+    );
     return;
   }
 
@@ -188,34 +194,37 @@ async function startPayment(
     game,
     period,
     paymentMethod: method,
-    amountUsd: price,
+    amountUsd: currency === "usd" ? amount : 0,
+    amountInr: currency === "inr" ? amount : null,
   });
+
+  const priceLabel = currency === "inr" ? fmtInr(amount) : fmtUsd(amount);
 
   if (method === "crypto") {
     const addr = getCryptoWallet();
-    const text = `${tr.cryptoTitle}\n\n${tr.cryptoBody(addr, fmtUsd(price))}`;
+    const text = `${tr.cryptoTitle}\n\n${tr.cryptoBody(addr, priceLabel)}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
     return;
   }
 
   if (method === "upi") {
     const upi = getUpiId();
-    const text = `${tr.upiTitle}\n\n${tr.upiBody(upi, fmtUsd(price))}`;
+    const text = `${tr.upiTitle}\n\n${tr.upiBody(upi, priceLabel)}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
     return;
   }
 
   if (method === "binance") {
     const binanceId = getBinanceId();
-    const text = `${tr.binanceTitle}\n\n${tr.binanceBody(binanceId, fmtUsd(price))}`;
+    const text = `${tr.binanceTitle}\n\n${tr.binanceBody(binanceId, priceLabel)}`;
     await showMenuText(ctx, text, payConfirmKb(lang, orderId));
     return;
   }
 
-  // method === "cryptobot"
+  // method === "cryptobot" — always USD here (UPI is the only INR path).
   try {
     const invoice = await cbCreateInvoice({
-      amountUsd: price,
+      amountUsd: amount,
       description: `WinStar order #${orderId} — ${tr.game[game]} (${tr.periodLabel[period]})`,
       payload: String(orderId),
     });
@@ -227,16 +236,24 @@ async function startPayment(
       "";
     if (!payUrl) {
       logger.warn({ invoice }, "Crypto Pay createInvoice returned no URL");
-      await showMenuText(ctx, tr.cryptoBotPaymentFailed, paymentsKb(lang, game, period));
+      await showMenuText(
+        ctx,
+        tr.cryptoBotPaymentFailed,
+        periodsKb(lang, game, method),
+      );
       return;
     }
     setOrderCryptobotInvoice(orderId, String(invoice.invoice_id), payUrl);
     const assets = getCryptoBotAssets();
-    const text = `${tr.cryptoBotTitle}\n\n${tr.cryptoBotBody(fmtUsd(price), assets)}`;
+    const text = `${tr.cryptoBotTitle}\n\n${tr.cryptoBotBody(priceLabel, assets)}`;
     await showMenuText(ctx, text, payCryptoBotKb(lang, orderId, payUrl));
   } catch (err) {
     logger.error({ err, orderId }, "Failed to create Crypto Pay invoice");
-    await showMenuText(ctx, tr.cryptoBotPaymentFailed, paymentsKb(lang, game, period));
+    await showMenuText(
+      ctx,
+      tr.cryptoBotPaymentFailed,
+      periodsKb(lang, game, method),
+    );
   }
 }
 
@@ -286,13 +303,17 @@ async function notifyAdminsOfOrder(
   const userLabel = user?.username
     ? `@${user.username} (${order.user_telegram_id})`
     : `${user?.first_name ?? ""} (${order.user_telegram_id})`.trim();
+  const priceLabel =
+    order.amount_inr != null && order.amount_inr > 0
+      ? fmtInr(order.amount_inr)
+      : fmtUsd(order.amount_usd);
   const body = `${tr.adminOrderTitle}\n\n${tr.adminOrderBody(
     order.id,
     userLabel,
     tr.game[order.game],
     tr.periodLabel[order.period],
     tr.paymentLabel[order.payment_method],
-    fmtUsd(order.amount_usd),
+    priceLabel,
   )}`;
   for (const adminId of notifyableAdminIds()) {
     try {
@@ -405,6 +426,7 @@ export function registerUserHandlers(bot: Bot): void {
     await showAndroid(ctx);
   });
 
+  // After picking a game → show payment methods.
   bot.callbackQuery(/^buy:game:(.+)$/, async (ctx) => {
     const g = ctx.match![1]!;
     if (!isGameId(g)) {
@@ -412,24 +434,29 @@ export function registerUserHandlers(bot: Bot): void {
       return;
     }
     await ctx.answerCallbackQuery();
-    await showPeriods(ctx, g);
+    await showPaymentsForGame(ctx, g);
   });
 
-  bot.callbackQuery(/^buy:period:([^:]+):([^:]+)$/, async (ctx) => {
+  // After picking a payment method → show periods (in the right currency).
+  bot.callbackQuery(/^buy:method:([^:]+):([^:]+)$/, async (ctx) => {
     const g = ctx.match![1]!;
-    const p = ctx.match![2]!;
-    if (!isGameId(g) || !isPeriodId(p)) {
+    const m = ctx.match![2]!;
+    if (
+      !isGameId(g) ||
+      (m !== "crypto" && m !== "cryptobot" && m !== "upi" && m !== "binance")
+    ) {
       await ctx.answerCallbackQuery();
       return;
     }
     await ctx.answerCallbackQuery();
-    await showPayments(ctx, g, p);
+    await showPeriodsForMethod(ctx, g, m);
   });
 
-  bot.callbackQuery(/^buy:pay:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
+  // After picking a period → start the actual payment flow.
+  bot.callbackQuery(/^buy:order:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
     const g = ctx.match![1]!;
-    const p = ctx.match![2]!;
-    const m = ctx.match![3]!;
+    const m = ctx.match![2]!;
+    const p = ctx.match![3]!;
     if (
       !isGameId(g) ||
       !isPeriodId(p) ||
