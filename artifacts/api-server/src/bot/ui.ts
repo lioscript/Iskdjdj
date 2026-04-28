@@ -29,14 +29,6 @@ export async function showMenuText(
   keyboard: import("grammy").InlineKeyboard,
 ): Promise<void> {
   await deleteLastMenu(ctx);
-  // Also delete the user's triggering message if any (clean chat)
-  if (ctx.message?.message_id && ctx.chat?.id) {
-    try {
-      await ctx.api.deleteMessage(ctx.chat.id, ctx.message.message_id);
-    } catch {
-      /* ignore */
-    }
-  }
   const sent = await ctx.reply(text, {
     reply_markup: keyboard,
     parse_mode: "Markdown",
@@ -53,13 +45,6 @@ export async function showMenuPhoto(
   keyboard: import("grammy").InlineKeyboard,
 ): Promise<void> {
   await deleteLastMenu(ctx);
-  if (ctx.message?.message_id && ctx.chat?.id) {
-    try {
-      await ctx.api.deleteMessage(ctx.chat.id, ctx.message.message_id);
-    } catch {
-      /* ignore */
-    }
-  }
   try {
     const sent = await ctx.replyWithPhoto(new InputFile(POSTER_PATH), {
       caption,
