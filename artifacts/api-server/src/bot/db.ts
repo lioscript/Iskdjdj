@@ -51,7 +51,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS prices (
     game TEXT NOT NULL,
     period TEXT NOT NULL,
-    amount_usd REAL NOT NULL,
+    amount_usd REAL,
+    amount_inr REAL,
     PRIMARY KEY (game, period)
   );
 
@@ -132,14 +133,38 @@ db.exec(`
 
 // `prices` had only USD prices originally. We add an `amount_inr`
 // column so admins can set per-period INR prices (used when the user
-// pays via UPI).
+// pays via UPI). We also need to drop the legacy NOT NULL constraint
+// on `amount_usd` so an admin can set just an INR price (or just a USD
+// price) for a (game, period) — otherwise the upsert used by
+// setPriceInr would fail with `NOT NULL constraint failed:
+// prices.amount_usd` whenever the conflict path tried to insert a new
+// row before falling back to UPDATE.
 {
   const cols = db
     .prepare("PRAGMA table_info(prices)")
-    .all() as Array<{ name: string }>;
-  const have = new Set(cols.map((c) => c.name));
+    .all() as Array<{ name: string; notnull: number }>;
+  const have = new Map(cols.map((c) => [c.name, c]));
   if (!have.has("amount_inr")) {
     db.exec("ALTER TABLE prices ADD COLUMN amount_inr REAL");
+  }
+  const usd = have.get("amount_usd");
+  if (usd && usd.notnull === 1) {
+    // SQLite cannot ALTER COLUMN to drop NOT NULL — rebuild the table.
+    db.exec(`
+      BEGIN;
+      CREATE TABLE prices_new (
+        game TEXT NOT NULL,
+        period TEXT NOT NULL,
+        amount_usd REAL,
+        amount_inr REAL,
+        PRIMARY KEY (game, period)
+      );
+      INSERT INTO prices_new (game, period, amount_usd, amount_inr)
+        SELECT game, period, amount_usd, amount_inr FROM prices;
+      DROP TABLE prices;
+      ALTER TABLE prices_new RENAME TO prices;
+      COMMIT;
+    `);
   }
 }
 db.exec(
