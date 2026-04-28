@@ -109,6 +109,24 @@ type Dict = {
   adminBtnSetCryptoBotAssets: string;
   adminInvalidNumber: string;
   adminCancelled: string;
+  // Admin management (add/list/remove admins)
+  adminBtnAddAdmin: string;
+  adminBtnListAdmins: string;
+  adminAddAdminPrompt: string;
+  adminAddAdminInvalid: string;
+  adminAddAdminDuplicate: string;
+  adminAddAdminOk: (username: string) => string;
+  adminListAdminsTitle: string;
+  adminListAdminsEmpty: string;
+  adminListAdminsRow: (
+    label: string,
+    status: string,
+  ) => string;
+  adminListAdminsSuperBadge: string;
+  adminListAdminsResolvedBadge: string;
+  adminListAdminsPendingBadge: string;
+  adminAdminRemoved: string;
+  adminCannotRemoveSuper: string;
   // Order admin notification
   adminOrderTitle: string;
   adminOrderBody: (
@@ -259,6 +277,24 @@ const en: Dict = {
   adminBtnSetCryptoBotAssets: "🪙  Set Crypto Bot assets",
   adminInvalidNumber: "Please send a valid positive number.",
   adminCancelled: "Cancelled.",
+  adminBtnAddAdmin: "➕  Add administrator",
+  adminBtnListAdmins: "👥  Administrators list",
+  adminAddAdminPrompt:
+    "Send the @username of the new administrator (e.g. `@johndoe`).\n\nThey will get full access to /adm and to approving payments. Send /cancel to abort.",
+  adminAddAdminInvalid:
+    "That doesn't look like a valid Telegram username. Send something like `@johndoe`.",
+  adminAddAdminDuplicate: "That username is already an administrator.",
+  adminAddAdminOk: (username) =>
+    `✅  *@${username}* has been added as an administrator.\n\nThey will gain access the next time they message the bot.`,
+  adminListAdminsTitle: "👥  *Administrators*",
+  adminListAdminsEmpty:
+    "👥  *Administrators*\n\nNo administrators have been added yet. Tap “➕  Add administrator” to add one by username.",
+  adminListAdminsRow: (label, status) => `• ${label}  —  ${status}`,
+  adminListAdminsSuperBadge: "👑 super admin (cannot be removed)",
+  adminListAdminsResolvedBadge: "✅ active",
+  adminListAdminsPendingBadge: "⏳ pending first message",
+  adminAdminRemoved: "Administrator removed.",
+  adminCannotRemoveSuper: "The super admin cannot be removed.",
   adminOrderTitle: "🔔  *New payment claim*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  Order *#${orderId}*\n\n👤  User: ${user}\n🎮  Game: ${game}\n⏳  Period: ${period}\n💳  Method: ${method}\n💰  Amount: *${amount}*`,
@@ -387,6 +423,24 @@ const ru: Dict = {
   adminBtnSetCryptoBotAssets: "🪙  Активы Crypto Bot",
   adminInvalidNumber: "Введите корректное положительное число.",
   adminCancelled: "Отменено.",
+  adminBtnAddAdmin: "➕  Добавить администратора",
+  adminBtnListAdmins: "👥  Список администраторов",
+  adminAddAdminPrompt:
+    "Отправьте @username нового администратора (например `@johndoe`).\n\nОн получит полный доступ к /adm и подтверждению оплат. Отправьте /cancel для отмены.",
+  adminAddAdminInvalid:
+    "Это не похоже на корректный @username. Отправьте что-то вроде `@johndoe`.",
+  adminAddAdminDuplicate: "Этот пользователь уже администратор.",
+  adminAddAdminOk: (username) =>
+    `✅  *@${username}* добавлен в администраторы.\n\nДоступ откроется при следующем сообщении боту.`,
+  adminListAdminsTitle: "👥  *Администраторы*",
+  adminListAdminsEmpty:
+    "👥  *Администраторы*\n\nАдминистраторов пока нет. Нажмите «➕  Добавить администратора», чтобы добавить по @username.",
+  adminListAdminsRow: (label, status) => `• ${label}  —  ${status}`,
+  adminListAdminsSuperBadge: "👑 супер-админ (нельзя удалить)",
+  adminListAdminsResolvedBadge: "✅ активен",
+  adminListAdminsPendingBadge: "⏳ ждёт первое сообщение",
+  adminAdminRemoved: "Администратор удалён.",
+  adminCannotRemoveSuper: "Супер-администратора нельзя удалить.",
   adminOrderTitle: "🔔  *Новая заявка на оплату*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  Заказ *#${orderId}*\n\n👤  Пользователь: ${user}\n🎮  Игра: ${game}\n⏳  Период: ${period}\n💳  Метод: ${method}\n💰  Сумма: *${amount}*`,
@@ -515,6 +569,24 @@ const hi: Dict = {
   adminBtnSetCryptoBotAssets: "🪙  Crypto Bot एसेट्स",
   adminInvalidNumber: "कृपया वैध सकारात्मक संख्या भेजें।",
   adminCancelled: "रद्द किया गया।",
+  adminBtnAddAdmin: "➕  एडमिन जोड़ें",
+  adminBtnListAdmins: "👥  एडमिन सूची",
+  adminAddAdminPrompt:
+    "नए एडमिन का @username भेजें (जैसे `@johndoe`)।\n\nउसे /adm और भुगतान मंज़ूर करने का पूरा एक्सेस मिलेगा। रद्द करने के लिए /cancel।",
+  adminAddAdminInvalid:
+    "यह सही Telegram @username नहीं लगता। कुछ इस तरह भेजें: `@johndoe`.",
+  adminAddAdminDuplicate: "यह यूज़र पहले से एडमिन है।",
+  adminAddAdminOk: (username) =>
+    `✅  *@${username}* को एडमिन के रूप में जोड़ दिया गया।\n\nजब वे अगली बार बॉट को मैसेज करेंगे तो एक्सेस सक्रिय हो जाएगा।`,
+  adminListAdminsTitle: "👥  *एडमिन*",
+  adminListAdminsEmpty:
+    "👥  *एडमिन*\n\nअभी कोई एडमिन नहीं जोड़ा गया। @username से जोड़ने के लिए «➕  एडमिन जोड़ें» दबाएँ।",
+  adminListAdminsRow: (label, status) => `• ${label}  —  ${status}`,
+  adminListAdminsSuperBadge: "👑 सुपर एडमिन (हटाया नहीं जा सकता)",
+  adminListAdminsResolvedBadge: "✅ सक्रिय",
+  adminListAdminsPendingBadge: "⏳ पहले मैसेज का इंतज़ार",
+  adminAdminRemoved: "एडमिन हटा दिया गया।",
+  adminCannotRemoveSuper: "सुपर एडमिन को हटाया नहीं जा सकता।",
   adminOrderTitle: "🔔  *नई भुगतान दावा*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  ऑर्डर *#${orderId}*\n\n👤  यूज़र: ${user}\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n💳  तरीका: ${method}\n💰  राशि: *${amount}*`,

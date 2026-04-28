@@ -7,6 +7,7 @@ import {
   getCryptoWallet,
   getOrder,
   getPrice,
+  getResolvedBotAdminTelegramIds,
   getUpiId,
   getUser,
   reserveKeyForOrder,
@@ -14,6 +15,7 @@ import {
   setUserLanguage,
   upsertUser,
 } from "../db";
+import { OWNER_ID, SUPER_ADMIN_ID } from "./admin";
 import {
   isGameId,
   isPeriodId,
@@ -70,12 +72,22 @@ function fmtUsd(n: number): string {
   return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
 }
 
-function adminIds(): number[] {
-  const raw = process.env["ADMIN_TELEGRAM_IDS"] ?? "";
-  return raw
+// Returns every Telegram ID that should receive admin notifications:
+// the env-configured admins, the hard-coded OWNER and SUPER_ADMIN, and
+// every dynamically-added bot admin whose Telegram ID has been resolved
+// (i.e. they have already messaged the bot at least once). Deduplicated.
+function notifyableAdminIds(): number[] {
+  const env = (process.env["ADMIN_TELEGRAM_IDS"] ?? "")
     .split(/[,\s]+/)
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
+  const set = new Set<number>([
+    OWNER_ID,
+    SUPER_ADMIN_ID,
+    ...env,
+    ...getResolvedBotAdminTelegramIds(),
+  ]);
+  return Array.from(set);
 }
 
 async function showMain(ctx: Context): Promise<void> {
@@ -282,7 +294,7 @@ async function notifyAdminsOfOrder(
     tr.paymentLabel[order.payment_method],
     fmtUsd(order.amount_usd),
   )}`;
-  for (const adminId of adminIds()) {
+  for (const adminId of notifyableAdminIds()) {
     try {
       await bot.api.sendMessage(adminId, body, {
         reply_markup: adminOrderKb(orderId),
@@ -445,7 +457,6 @@ export function registerUserHandlers(bot: Bot): void {
 // Helpers exported for admin handler reuse
 export {
   fmtUsd,
-  adminIds,
   reserveKeyForOrder,
   showMain,
   showLangPicker,

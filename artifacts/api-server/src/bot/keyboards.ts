@@ -11,7 +11,13 @@ import {
   type PeriodId,
 } from "./catalog";
 import { LANGS, LANG_LABELS, t, type Lang } from "./i18n";
-import { countAvailableKeys, getPrice, listAvailableKeys } from "./db";
+import {
+  countAvailableKeys,
+  getPrice,
+  listAvailableKeys,
+  listBotAdmins,
+  type BotAdminRow,
+} from "./db";
 
 export function languagePickerKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -160,6 +166,8 @@ export function adminPanelKb(lang: Lang): InlineKeyboard {
     .text(tr.adminAddKeys, "adm:addkeys").row()
     .text(tr.adminViewKeys, "adm:viewkeys").row()
     .text(tr.adminSettings, "adm:settings").row()
+    .text(tr.adminBtnAddAdmin, "adm:admins:add").row()
+    .text(tr.adminBtnListAdmins, "adm:admins").row()
     .text(tr.btnHome, "nav:home");
 }
 
@@ -220,6 +228,30 @@ export function adminSettingsKb(lang: Lang): InlineKeyboard {
     .text(tr.adminBtnSetCryptoBotToken, "adm:set:cbtoken").row()
     .text(tr.adminBtnSetCryptoBotAssets, "adm:set:cbassets").row()
     .text(tr.adminBack, "adm:home");
+}
+
+// Renders the admins list keyboard. The super admin row is shown but
+// not deletable. The owner is never passed in here.
+export function adminListAdminsKb(
+  lang: Lang,
+  superAdminId: number,
+): InlineKeyboard {
+  const tr = t(lang);
+  const kb = new InlineKeyboard();
+  // Super admin is always at the top, with a non-actionable badge button.
+  kb.text(`👑  ${superAdminId}  •  super admin`, "adm:admins:noop").row();
+  const rows: BotAdminRow[] = listBotAdmins();
+  for (const r of rows) {
+    const label = r.username
+      ? `@${r.username}`
+      : r.telegram_id
+        ? String(r.telegram_id)
+        : `#${r.id}`;
+    kb.text(`✕  ${label}`, `adm:admins:del:${r.id}`).row();
+  }
+  kb.text(tr.adminBtnAddAdmin, "adm:admins:add").row();
+  kb.text(tr.adminBack, "adm:home");
+  return kb;
 }
 
 export function adminOrderKb(orderId: number): InlineKeyboard {

@@ -44,10 +44,21 @@ the same Node.js process that runs the small Express API.
     "I have paid" → admin gets the order with Approve / Reject
     buttons → on approve, a key is automatically pulled from
     inventory, hard-deleted from stock, and delivered to the user.
-- Admin panel via `/adm` (only for IDs in `ADMIN_TELEGRAM_IDS`):
-  statistics, prices, add keys (bulk, one per line), view/delete keys,
-  set crypto wallet, UPI ID, Binance ID, Crypto Pay token, accepted
-  assets list.
+- Admin panel via `/adm`: statistics, prices, add keys (bulk, one per
+  line), view/delete keys, set crypto wallet / UPI ID / Binance ID /
+  Crypto Pay token / accepted assets list, and runtime admin
+  management (add an admin by `@username`, view all admins, remove
+  any non-super admin).
+- Who counts as an admin (any of the following gets full /adm access
+  and order-approval rights, and is notified of new payment claims):
+  - **Owner** — hard-coded ID `5929338019`. Hidden from the admins
+    list (intentionally secret).
+  - **Super admin** — hard-coded ID `5136124483`. Shown in the
+    admins list with a 👑 badge but cannot be removed.
+  - Telegram IDs listed in the `ADMIN_TELEGRAM_IDS` env variable.
+  - Admins added at runtime via "➕ Add administrator" in `/adm`,
+    stored in the `bot_admins` table by `@username` and lazy-linked
+    to a Telegram ID the first time they message the bot.
 
 ### Required secrets
 

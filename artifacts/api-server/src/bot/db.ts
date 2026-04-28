@@ -84,6 +84,17 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS bot_admins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id INTEGER UNIQUE,
+    username TEXT COLLATE NOCASE,
+    added_at INTEGER NOT NULL,
+    added_by_telegram_id INTEGER
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_admins_username
+    ON bot_admins(username COLLATE NOCASE)
+    WHERE username IS NOT NULL;
 `);
 
 // Lightweight migration: add Crypto Bot invoice tracking columns and
@@ -555,4 +566,116 @@ export function listOrdersDueForReminder(
 export function markReminderSent(orderId: number, kind: ReminderKind): void {
   const col = REMINDER_COL[kind];
   db.prepare(`UPDATE orders SET ${col} = 1 WHERE id = ?`).run(orderId);
+}
+
+// ---------- bot admins ----------
+//
+// `bot_admins` holds admins that were added at runtime via the /adm panel.
+// They are added by `username` (Telegram does not let bots resolve a
+// `@username` to a numeric ID up-front), and the `telegram_id` column is
+// filled in lazily the first time that user interacts with the bot.
+// In addition to this table, the OWNER and SUPER_ADMIN constants in
+// `handlers/admin.ts` and any IDs in `ADMIN_TELEGRAM_IDS` env are also
+// considered admins — those are not stored here.
+
+export type BotAdminRow = {
+  id: number;
+  telegram_id: number | null;
+  username: string | null;
+  added_at: number;
+  added_by_telegram_id: number | null;
+};
+
+const listBotAdminsStmt = db.prepare<[], BotAdminRow>(
+  "SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins ORDER BY added_at ASC",
+);
+const getBotAdminByTgIdStmt = db.prepare<[number], BotAdminRow>(
+  "SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE telegram_id = ?",
+);
+const getBotAdminByUsernameStmt = db.prepare<[string], BotAdminRow>(
+  "SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE username = ? COLLATE NOCASE",
+);
+const insertBotAdminStmt = db.prepare(
+  "INSERT INTO bot_admins (telegram_id, username, added_at, added_by_telegram_id) VALUES (?, ?, ?, ?)",
+);
+const deleteBotAdminByIdStmt = db.prepare("DELETE FROM bot_admins WHERE id = ?");
+const linkBotAdminTgIdStmt = db.prepare(
+  "UPDATE bot_admins SET telegram_id = ? WHERE id = ? AND (telegram_id IS NULL OR telegram_id = ?)",
+);
+
+function normalizeUsername(raw: string): string {
+  let u = raw.trim();
+  if (u.startsWith("https://t.me/")) u = u.slice("https://t.me/".length);
+  if (u.startsWith("t.me/")) u = u.slice("t.me/".length);
+  if (u.startsWith("@")) u = u.slice(1);
+  return u;
+}
+
+export function isValidUsername(raw: string): boolean {
+  const u = normalizeUsername(raw);
+  // Telegram usernames: 5-32 chars, [A-Za-z0-9_], must start with a letter.
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(u);
+}
+
+export function listBotAdmins(): BotAdminRow[] {
+  return listBotAdminsStmt.all() as BotAdminRow[];
+}
+
+export type AddBotAdminResult =
+  | { ok: true; row: BotAdminRow }
+  | { ok: false; reason: "invalid" | "duplicate" };
+
+export function addBotAdminByUsername(
+  rawUsername: string,
+  addedByTelegramId: number | null,
+): AddBotAdminResult {
+  if (!isValidUsername(rawUsername)) return { ok: false, reason: "invalid" };
+  const username = normalizeUsername(rawUsername);
+  const existing = getBotAdminByUsernameStmt.get(username) as BotAdminRow | undefined;
+  if (existing) return { ok: false, reason: "duplicate" };
+  const info = insertBotAdminStmt.run(null, username, Date.now(), addedByTelegramId);
+  const row = (db
+    .prepare(
+      "SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE id = ?",
+    )
+    .get(Number(info.lastInsertRowid))) as BotAdminRow;
+  return { ok: true, row };
+}
+
+export function removeBotAdminById(id: number): boolean {
+  const info = deleteBotAdminByIdStmt.run(id);
+  return info.changes > 0;
+}
+
+export function isBotAdminUser(args: {
+  telegramId: number;
+  username: string | null;
+}): boolean {
+  // Match by numeric id first.
+  const byId = getBotAdminByTgIdStmt.get(args.telegramId) as BotAdminRow | undefined;
+  if (byId) return true;
+  // Then fall back to username match. If found, lazy-link the telegram_id
+  // so future lookups are by id.
+  if (args.username) {
+    const byName = getBotAdminByUsernameStmt.get(args.username) as
+      | BotAdminRow
+      | undefined;
+    if (byName) {
+      if (byName.telegram_id === null) {
+        try {
+          linkBotAdminTgIdStmt.run(args.telegramId, byName.id, args.telegramId);
+        } catch {
+          /* ignore — another row already has this telegram_id */
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+export function getResolvedBotAdminTelegramIds(): number[] {
+  return (listBotAdminsStmt.all() as BotAdminRow[])
+    .map((r) => r.telegram_id)
+    .filter((n): n is number => typeof n === "number" && n > 0);
 }

