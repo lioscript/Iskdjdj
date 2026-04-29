@@ -12,7 +12,9 @@ import {
   getOrder,
   getPriceInr,
   getPriceUsd,
+  getResolvedBotAdminTelegramIds,
   getStats,
+  getTestflightLink,
   getUpiId,
   getUser,
   isBotAdminUser,
@@ -40,6 +42,7 @@ import {
 } from "../keyboards";
 import { showMenuText } from "../ui";
 import { clearState, getState, setState } from "../state";
+import { sendPostDeliveryInfo } from "../delivery";
 import { logger } from "../../lib/logger";
 
 function fmtUsd(n: number): string {
@@ -60,6 +63,20 @@ function envAdminIds(): number[] {
     .split(/[,\s]+/)
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+// Returns every Telegram ID that should receive admin notifications:
+// the env-configured admins, the hard-coded OWNER and SUPER_ADMIN, and
+// every dynamically-added bot admin whose Telegram ID has been resolved
+// (i.e. they have already messaged the bot at least once). Deduplicated.
+export function notifyableAdminIds(): number[] {
+  const set = new Set<number>([
+    OWNER_ID,
+    SUPER_ADMIN_ID,
+    ...envAdminIds(),
+    ...getResolvedBotAdminTelegramIds(),
+  ]);
+  return Array.from(set);
 }
 
 function isAdmin(ctx: Context): boolean {
@@ -139,6 +156,7 @@ async function showAdminSettings(ctx: Context): Promise<void> {
       getBinanceId(),
       getCryptoBotToken(),
       getCryptoBotAssets(),
+      getTestflightLink(),
     ),
     adminSettingsKb(lang),
   );
@@ -241,6 +259,7 @@ export function registerAdminHandlers(bot: Bot): void {
     } catch (err) {
       logger.error({ err }, "Failed to deliver key to user");
     }
+    await sendPostDeliveryInfo(bot, order.user_telegram_id, userLang);
   });
 
   // /adm — admin panel entrypoint
@@ -322,14 +341,15 @@ export function registerAdminHandlers(bot: Bot): void {
     await showAdminsList(ctx);
   });
 
-  bot.callbackQuery(/^adm:set:(crypto|upi|binance|cbtoken|cbassets)$/, async (ctx) => {
+  bot.callbackQuery(/^adm:set:(crypto|upi|binance|cbtoken|cbassets|testflight)$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
     const which = ctx.match![1] as
       | "crypto"
       | "upi"
       | "binance"
       | "cbtoken"
-      | "cbassets";
+      | "cbassets"
+      | "testflight";
     const lang = getLang(ctx);
     const tr = t(lang);
     await ctx.answerCallbackQuery();
@@ -345,9 +365,12 @@ export function registerAdminHandlers(bot: Bot): void {
     } else if (which === "cbtoken") {
       setState(ctx.chat!.id, { kind: "await_cbtoken" });
       await showMenuText(ctx, tr.adminEnterCryptoBotToken, adminSettingsKb(lang));
-    } else {
+    } else if (which === "cbassets") {
       setState(ctx.chat!.id, { kind: "await_cbassets" });
       await showMenuText(ctx, tr.adminEnterCryptoBotAssets, adminSettingsKb(lang));
+    } else {
+      setState(ctx.chat!.id, { kind: "await_testflight" });
+      await showMenuText(ctx, tr.adminEnterTestflight, adminSettingsKb(lang));
     }
   });
 
@@ -622,6 +645,15 @@ export function registerAdminHandlers(bot: Bot): void {
       setSetting("cryptobot_token", value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminCryptoBotTokenUpdated, adminSettingsKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_testflight") {
+      const trimmed = text.trim();
+      const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
+      setSetting("testflight_link", value);
+      clearState(ctx.chat.id);
+      await showMenuText(ctx, tr.adminTestflightUpdated, adminSettingsKb(lang));
       return;
     }
 

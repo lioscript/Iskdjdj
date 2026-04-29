@@ -7,7 +7,6 @@ import {
   getCryptoWallet,
   getOrder,
   getPriceForMethod,
-  getResolvedBotAdminTelegramIds,
   getUpiId,
   getUser,
   reserveKeyForOrder,
@@ -15,7 +14,7 @@ import {
   setUserLanguage,
   upsertUser,
 } from "../db";
-import { OWNER_ID, SUPER_ADMIN_ID } from "./admin";
+import { notifyableAdminIds } from "./admin";
 import {
   isGameId,
   isPeriodId,
@@ -71,24 +70,6 @@ function getOrCreateUser(ctx: Context): { lang: Lang; firstName: string } {
 
 function fmtUsd(n: number): string {
   return `$${n.toFixed(n % 1 === 0 ? 0 : 2)}`;
-}
-
-// Returns every Telegram ID that should receive admin notifications:
-// the env-configured admins, the hard-coded OWNER and SUPER_ADMIN, and
-// every dynamically-added bot admin whose Telegram ID has been resolved
-// (i.e. they have already messaged the bot at least once). Deduplicated.
-function notifyableAdminIds(): number[] {
-  const env = (process.env["ADMIN_TELEGRAM_IDS"] ?? "")
-    .split(/[,\s]+/)
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  const set = new Set<number>([
-    OWNER_ID,
-    SUPER_ADMIN_ID,
-    ...env,
-    ...getResolvedBotAdminTelegramIds(),
-  ]);
-  return Array.from(set);
 }
 
 async function showMain(ctx: Context): Promise<void> {

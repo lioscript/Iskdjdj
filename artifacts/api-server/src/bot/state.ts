@@ -16,6 +16,7 @@ export type AdminState =
   | { kind: "await_binance" }
   | { kind: "await_cbtoken" }
   | { kind: "await_cbassets" }
+  | { kind: "await_testflight" }
   | { kind: "await_admin_username" };
 
 const states = new Map<number, AdminState>();

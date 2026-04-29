@@ -121,10 +121,10 @@ export function fmtInr(n: number): string {
 export function paymentsKbForGame(lang: Lang, game: GameId): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard()
-    .text(tr.paymentLabel.cryptobot, `buy:method:${game}:cryptobot`).row()
-    .text(tr.paymentLabel.crypto, `buy:method:${game}:crypto`).row()
     .text(tr.paymentLabel.upi, `buy:method:${game}:upi`).row()
-    .text(tr.paymentLabel.binance, `buy:method:${game}:binance`).row();
+    .text(tr.paymentLabel.binance, `buy:method:${game}:binance`).row()
+    .text(tr.paymentLabel.crypto, `buy:method:${game}:crypto`).row()
+    .text(tr.paymentLabel.cryptobot, `buy:method:${game}:cryptobot`).row();
   // Back to the variant picker for the group, else games list.
   const group = getGameGroup(game);
   const groupPicker = group ? GROUP_PICKER_CALLBACK[group] : undefined;
@@ -267,6 +267,7 @@ export function adminSettingsKb(lang: Lang): InlineKeyboard {
     .text(tr.adminBtnSetBinance, "adm:set:binance").row()
     .text(tr.adminBtnSetCryptoBotToken, "adm:set:cbtoken").row()
     .text(tr.adminBtnSetCryptoBotAssets, "adm:set:cbassets").row()
+    .text(tr.adminBtnSetTestflight, "adm:set:testflight").row()
     .text(tr.adminBack, "adm:home");
 }
 

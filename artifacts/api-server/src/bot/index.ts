@@ -4,11 +4,14 @@ import { registerUserHandlers } from "./handlers/user";
 import { registerAdminHandlers } from "./handlers/admin";
 import {
   getUser,
+  listOrdersDueForAdminExpired,
   listOrdersDueForReminder,
   listPendingCryptobotOrders,
+  markAdminNotifiedExpired,
   markReminderSent,
   type ReminderKind,
 } from "./db";
+import { notifyableAdminIds } from "./handlers/admin";
 import { getGameLabel } from "./catalog";
 import { t } from "./i18n";
 import {
@@ -47,6 +50,13 @@ async function sweepExpirationReminders(bot: Bot): Promise<void> {
   for (const kind of kinds) {
     const orders = listOrdersDueForReminder(kind, REMINDER_WINDOWS_MS[kind]);
     for (const order of orders) {
+      // For 1-day plans the 3d/1d reminders don't make sense — only the
+      // 1-hour reminder is relevant. Mark the unwanted ones as sent so
+      // we don't keep re-querying them.
+      if (order.period === "day" && (kind === "3d" || kind === "1d")) {
+        markReminderSent(order.id, kind);
+        continue;
+      }
       const user = getUser(order.user_telegram_id);
       const lang = user?.language ?? "en";
       const tr = t(lang);
@@ -82,6 +92,40 @@ async function sweepExpirationReminders(bot: Bot): Promise<void> {
         }
       }
     }
+  }
+}
+
+async function sweepAdminExpired(bot: Bot): Promise<void> {
+  const orders = listOrdersDueForAdminExpired();
+  if (orders.length === 0) return;
+  const adminIds = notifyableAdminIds();
+  for (const order of orders) {
+    const user = getUser(order.user_telegram_id);
+    const baseName = user?.username
+      ? `@${user.username}`
+      : user?.first_name || `user`;
+    const userLabel = `${baseName} (id: ${order.user_telegram_id})`;
+    const gameLabel = getGameLabel(order.game);
+    for (const adminId of adminIds) {
+      const adminUser = getUser(adminId);
+      const lang = adminUser?.language ?? "en";
+      const tr = t(lang);
+      const periodLabel = tr.periodLabel[PERIOD_LABEL_KEY[order.period]];
+      const text = tr.adminExpiredNotify(userLabel, gameLabel, periodLabel);
+      try {
+        await bot.api.sendMessage(adminId, text, { parse_mode: "Markdown" });
+      } catch (err) {
+        logger.warn(
+          { err, adminId, orderId: order.id },
+          "Failed to notify admin about expired key",
+        );
+      }
+    }
+    markAdminNotifiedExpired(order.id);
+    logger.info(
+      { orderId: order.id, userId: order.user_telegram_id },
+      "Admins notified about expired key",
+    );
   }
 }
 
@@ -175,6 +219,15 @@ export async function startBot(): Promise<void> {
   setInterval(() => {
     sweepExpirationReminders(bot).catch((err) =>
       logger.warn({ err }, "Expiration reminder sweeper crashed"),
+    );
+  }, REMINDER_INTERVAL_MS).unref();
+
+  // Periodic sweeper: notify admins (with the user's @username) when a
+  // delivered key has expired so they can remove the user from the
+  // private group.
+  setInterval(() => {
+    sweepAdminExpired(bot).catch((err) =>
+      logger.warn({ err }, "Admin-expired sweeper crashed"),
     );
   }, REMINDER_INTERVAL_MS).unref();
 

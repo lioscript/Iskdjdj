@@ -129,6 +129,13 @@ db.exec(`
   if (!have.has("amount_inr")) {
     db.exec("ALTER TABLE orders ADD COLUMN amount_inr REAL");
   }
+  // Admin "key has expired, kick the user from the private group"
+  // notification flag.
+  if (!have.has("admin_notified_expired")) {
+    db.exec(
+      "ALTER TABLE orders ADD COLUMN admin_notified_expired INTEGER NOT NULL DEFAULT 0",
+    );
+  }
 }
 
 // `prices` had only USD prices originally. We add an `amount_inr`
@@ -259,6 +266,10 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   cryptobot_token: process.env["CRYPTOBOT_TOKEN"] ?? "",
   // Comma-separated list of crypto assets the user can pay with.
   cryptobot_assets: "USDT,TON,BTC,ETH,BNB,TRX",
+  // TestFlight invite link sent to the user after a successful purchase.
+  // Empty string means "not configured" → the line is omitted from the
+  // post-delivery message.
+  testflight_link: "",
 };
 
 {
@@ -634,6 +645,10 @@ export function getCryptoBotAssets(): string {
   return getSetting("cryptobot_assets") || "USDT,TON";
 }
 
+export function getTestflightLink(): string {
+  return getSetting("testflight_link") || "";
+}
+
 // ---------- expiration reminders ----------
 const REMINDER_COL: Record<ReminderKind, "reminded_3d" | "reminded_1d" | "reminded_1h"> = {
   "3d": "reminded_3d",
@@ -668,6 +683,30 @@ export function listOrdersDueForReminder(
 export function markReminderSent(orderId: number, kind: ReminderKind): void {
   const col = REMINDER_COL[kind];
   db.prepare(`UPDATE orders SET ${col} = 1 WHERE id = ?`).run(orderId);
+}
+
+// Returns delivered orders whose key has already expired (expires_at
+// is in the past) and for which we have not yet pinged the admins to
+// remove the user from the private group.
+export function listOrdersDueForAdminExpired(): OrderRow[] {
+  const now = Date.now();
+  return db
+    .prepare(
+      `SELECT * FROM orders
+       WHERE status = 'delivered'
+         AND expires_at IS NOT NULL
+         AND expires_at <= ?
+         AND admin_notified_expired = 0
+       ORDER BY expires_at ASC
+       LIMIT 200`,
+    )
+    .all(now) as OrderRow[];
+}
+
+export function markAdminNotifiedExpired(orderId: number): void {
+  db.prepare(
+    "UPDATE orders SET admin_notified_expired = 1 WHERE id = ?",
+  ).run(orderId);
 }
 
 // ---------- bot admins ----------

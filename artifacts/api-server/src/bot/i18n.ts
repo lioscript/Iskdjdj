@@ -57,9 +57,19 @@ type Dict = {
   paymentRejected: string;
   outOfStock: string;
   yourKey: (game: string, period: string, value: string) => string;
+  postDelivery: (
+    testflightLink: string,
+    updatesLink: string,
+    tutorialLink: string,
+  ) => string;
   expireReminder3d: (game: string, period: string) => string;
   expireReminder1d: (game: string, period: string) => string;
   expireReminder1h: (game: string, period: string) => string;
+  adminExpiredNotify: (
+    user: string,
+    game: string,
+    period: string,
+  ) => string;
   game: Record<GameId, string>;
   paymentLabel: Record<"crypto" | "cryptobot" | "upi" | "binance", string>;
   // Admin
@@ -105,22 +115,26 @@ type Dict = {
     binanceId: string,
     cryptoBotToken: string,
     cryptoBotAssets: string,
+    testflightLink: string,
   ) => string;
   adminEnterCrypto: string;
   adminEnterUpi: string;
   adminEnterBinance: string;
   adminEnterCryptoBotToken: string;
   adminEnterCryptoBotAssets: string;
+  adminEnterTestflight: string;
   adminCryptoUpdated: string;
   adminUpiUpdated: string;
   adminBinanceUpdated: string;
   adminCryptoBotTokenUpdated: string;
   adminCryptoBotAssetsUpdated: string;
+  adminTestflightUpdated: string;
   adminBtnSetCrypto: string;
   adminBtnSetUpi: string;
   adminBtnSetBinance: string;
   adminBtnSetCryptoBotToken: string;
   adminBtnSetCryptoBotAssets: string;
+  adminBtnSetTestflight: string;
   adminInvalidNumber: string;
   adminCancelled: string;
   // Admin management (add/list/remove admins)
@@ -230,12 +244,25 @@ const en: Dict = {
   outOfStock: "😔  Sorry — out of stock for this option.\nPlease choose another period or contact support.",
   yourKey: (game, period, value) =>
     `🎉  *Order delivered!*\n\n🎮  Game: ${game}\n⏳  Period: ${period}\n\n🔑  Your key:\n\n\`${value}\`\n\n👆  Tap to copy.\n\n💎  Thank you for your purchase!`,
+  postDelivery: (testflightLink, updatesLink, tutorialLink) => {
+    const lines: string[] = ["📦  *What's next?*", ""];
+    if (testflightLink) {
+      lines.push(`📲  *TestFlight (install the app):*\n${testflightLink}`);
+      lines.push("");
+    }
+    lines.push(`🔔  *Private updates group:*\n${updatesLink}`);
+    lines.push("");
+    lines.push(`📚  *Installation tutorial channel:*\n${tutorialLink}`);
+    return lines.join("\n");
+  },
   expireReminder3d: (game, period) =>
     `⏰  *Heads up!*\n\nYour *${game}* (${period}) key will expire in *3 days*.\n\n🔁  Tap “🎮  Buy keys” in the main menu to grab a new one and avoid downtime.`,
   expireReminder1d: (game, period) =>
     `⚠  *Reminder*\n\nOnly *1 day* left on your *${game}* (${period}) key.\n\n🔁  Renew now to keep playing without interruptions.`,
   expireReminder1h: (game, period) =>
     `🚨  *Last hour!*\n\nYour *${game}* (${period}) key expires in *1 hour*.\n\n🔁  Buy a new one now so you don't get kicked mid-match.`,
+  adminExpiredNotify: (user, game, period) =>
+    `🛑  *Key expired*\n\n👤  User: ${user}\n🎮  Game: ${game}\n⏳  Period: ${period}\n\n⚠  Please remove this user from the private updates group.`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
@@ -276,8 +303,8 @@ const en: Dict = {
   adminPickGameForView: "Pick a game to view keys",
   adminPickPeriodForView: (game) => `${game}\n\nPick a period`,
   adminKeyDeleted: "Key removed.",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
-    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nUPI ID (India):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
+    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nUPI ID (India):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\`\n\nTestFlight link:\n${testflight ? `\`${testflight}\`` : "❌ not set"}`,
   adminEnterCrypto: "Send the new BEP20 wallet address. Send /cancel to abort.",
   adminEnterUpi: "Send the new UPI ID (India). Send /cancel to abort.",
   adminEnterBinance: "Send the new Binance ID (numeric Pay ID from your Binance app). Send /cancel to abort.",
@@ -285,16 +312,20 @@ const en: Dict = {
     "Send the Crypto Pay API token (get it from @CryptoBot → Crypto Pay → Create App). Send `clear` to remove it. Send /cancel to abort.",
   adminEnterCryptoBotAssets:
     "Send a comma-separated list of accepted assets (e.g. `USDT,TON,BTC,ETH`). Send /cancel to abort.",
+  adminEnterTestflight:
+    "Send the new TestFlight invite link (e.g. `https://testflight.apple.com/join/XXXXXX`). Send `clear` to remove it. Send /cancel to abort.",
   adminCryptoUpdated: "Crypto wallet updated.",
   adminUpiUpdated: "UPI ID updated.",
   adminBinanceUpdated: "Binance ID updated.",
   adminCryptoBotTokenUpdated: "Crypto Bot token updated.",
   adminCryptoBotAssetsUpdated: "Crypto Bot assets updated.",
+  adminTestflightUpdated: "TestFlight link updated.",
   adminBtnSetCrypto: "💰  Set crypto wallet",
   adminBtnSetUpi: "🇮🇳  Set UPI ID",
   adminBtnSetBinance: "🟡  Set Binance ID",
   adminBtnSetCryptoBotToken: "🤖  Set Crypto Bot token",
   adminBtnSetCryptoBotAssets: "🪙  Set Crypto Bot assets",
+  adminBtnSetTestflight: "📲  Set TestFlight link",
   adminInvalidNumber: "Please send a valid positive number.",
   adminCancelled: "Cancelled.",
   adminBtnAddAdmin: "➕  Add administrator",
@@ -382,12 +413,25 @@ const ru: Dict = {
     "😔  К сожалению, ключей по этому варианту нет в наличии.\nВыберите другой период или напишите в поддержку.",
   yourKey: (game, period, value) =>
     `🎉  *Заказ выдан!*\n\n🎮  Игра: ${game}\n⏳  Период: ${period}\n\n🔑  Ваш ключ:\n\n\`${value}\`\n\n👆  Нажмите, чтобы скопировать.\n\n💎  Спасибо за покупку!`,
+  postDelivery: (testflightLink, updatesLink, tutorialLink) => {
+    const lines: string[] = ["📦  *Что дальше?*", ""];
+    if (testflightLink) {
+      lines.push(`📲  *TestFlight (установка приложения):*\n${testflightLink}`);
+      lines.push("");
+    }
+    lines.push(`🔔  *Закрытая группа обновлений:*\n${updatesLink}`);
+    lines.push("");
+    lines.push(`📚  *Канал с инструкциями по установке:*\n${tutorialLink}`);
+    return lines.join("\n");
+  },
   expireReminder3d: (game, period) =>
     `⏰  *Напоминание*\n\nВаш ключ для *${game}* (${period}) истечёт через *3 дня*.\n\n🔁  Нажмите «🎮  Купить ключи» в главном меню, чтобы продлить без простоя.`,
   expireReminder1d: (game, period) =>
     `⚠  *Напоминание*\n\nДо окончания вашего ключа *${game}* (${period}) остался *1 день*.\n\n🔁  Продлите сейчас, чтобы играть без перерыва.`,
   expireReminder1h: (game, period) =>
     `🚨  *Последний час!*\n\nВаш ключ *${game}* (${period}) истекает через *1 час*.\n\n🔁  Купите новый сейчас, чтобы не вылететь посреди матча.`,
+  adminExpiredNotify: (user, game, period) =>
+    `🛑  *Ключ истёк*\n\n👤  Пользователь: ${user}\n🎮  Игра: ${game}\n⏳  Период: ${period}\n\n⚠  Удалите этого пользователя из закрытой группы обновлений.`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
@@ -428,8 +472,8 @@ const ru: Dict = {
   adminPickGameForView: "Выберите игру для просмотра ключей",
   adminPickPeriodForView: (game) => `${game}\n\nВыберите период`,
   adminKeyDeleted: "Ключ удалён.",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
-    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nUPI ID (Индия):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
+    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nUPI ID (Индия):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\`\n\nСсылка TestFlight:\n${testflight ? `\`${testflight}\`` : "❌ не установлена"}`,
   adminEnterCrypto: "Отправьте новый BEP20 адрес. /cancel — отменить.",
   adminEnterUpi: "Отправьте новый UPI ID (Индия). /cancel — отменить.",
   adminEnterBinance: "Отправьте новый Binance ID (числовой Pay ID из приложения Binance). /cancel — отменить.",
@@ -437,16 +481,20 @@ const ru: Dict = {
     "Отправьте Crypto Pay API токен (получите в @CryptoBot → Crypto Pay → Create App). Отправьте `clear`, чтобы удалить токен. /cancel — отменить.",
   adminEnterCryptoBotAssets:
     "Отправьте список активов через запятую (например `USDT,TON,BTC,ETH`). /cancel — отменить.",
+  adminEnterTestflight:
+    "Отправьте новую ссылку TestFlight (например `https://testflight.apple.com/join/XXXXXX`). Отправьте `clear`, чтобы удалить. /cancel — отменить.",
   adminCryptoUpdated: "Крипто-кошелёк обновлён.",
   adminUpiUpdated: "UPI ID обновлён.",
   adminBinanceUpdated: "Binance ID обновлён.",
   adminCryptoBotTokenUpdated: "Токен Crypto Bot обновлён.",
   adminCryptoBotAssetsUpdated: "Активы Crypto Bot обновлены.",
+  adminTestflightUpdated: "Ссылка TestFlight обновлена.",
   adminBtnSetCrypto: "💰  Сменить крипто-кошелёк",
   adminBtnSetUpi: "🇮🇳  Сменить UPI ID",
   adminBtnSetBinance: "🟡  Сменить Binance ID",
   adminBtnSetCryptoBotToken: "🤖  Токен Crypto Bot",
   adminBtnSetCryptoBotAssets: "🪙  Активы Crypto Bot",
+  adminBtnSetTestflight: "📲  Ссылка TestFlight",
   adminInvalidNumber: "Введите корректное положительное число.",
   adminCancelled: "Отменено.",
   adminBtnAddAdmin: "➕  Добавить администратора",
@@ -534,12 +582,25 @@ const hi: Dict = {
     "😔  क्षमा करें — इस विकल्प के लिए स्टॉक में कोई की नहीं है।\nकोई दूसरी अवधि चुनें या सहायता से संपर्क करें।",
   yourKey: (game, period, value) =>
     `🎉  *आपका ऑर्डर पूरा हुआ!*\n\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n\n🔑  आपकी की:\n\n\`${value}\`\n\n👆  कॉपी करने के लिए टैप करें।\n\n💎  खरीद के लिए धन्यवाद!`,
+  postDelivery: (testflightLink, updatesLink, tutorialLink) => {
+    const lines: string[] = ["📦  *आगे क्या?*", ""];
+    if (testflightLink) {
+      lines.push(`📲  *TestFlight (ऐप इंस्टॉल करें):*\n${testflightLink}`);
+      lines.push("");
+    }
+    lines.push(`🔔  *निजी अपडेट ग्रुप:*\n${updatesLink}`);
+    lines.push("");
+    lines.push(`📚  *इंस्टॉलेशन ट्यूटोरियल चैनल:*\n${tutorialLink}`);
+    return lines.join("\n");
+  },
   expireReminder3d: (game, period) =>
     `⏰  *सूचना*\n\nआपकी *${game}* (${period}) की *3 दिन* में एक्सपायर हो जाएगी।\n\n🔁  बिना रुकावट खेलते रहने के लिए मुख्य मेनू में «🎮  कीज़ खरीदें» दबाएँ।`,
   expireReminder1d: (game, period) =>
     `⚠  *रिमाइंडर*\n\nआपकी *${game}* (${period}) की में सिर्फ *1 दिन* बाकी है।\n\n🔁  अभी रिन्यू करें ताकि खेल में रुकावट न आए।`,
   expireReminder1h: (game, period) =>
     `🚨  *आखिरी 1 घंटा!*\n\nआपकी *${game}* (${period}) की *1 घंटे* में एक्सपायर हो रही है।\n\n🔁  मैच के बीच में बाहर न हों — अभी नई की खरीदें।`,
+  adminExpiredNotify: (user, game, period) =>
+    `🛑  *की एक्सपायर हो गई*\n\n👤  यूज़र: ${user}\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n\n⚠  कृपया इस यूज़र को निजी अपडेट ग्रुप से हटाएँ।`,
   game: GAME_LABELS,
   paymentLabel: {
     crypto: "💰  Crypto BEP20",
@@ -580,8 +641,8 @@ const hi: Dict = {
   adminPickGameForView: "कीज़ देखने के लिए गेम चुनें",
   adminPickPeriodForView: (game) => `${game}\n\nअवधि चुनें`,
   adminKeyDeleted: "की हटा दी गई।",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
-    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nUPI ID (भारत):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\``,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
+    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nUPI ID (भारत):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\`\n\nTestFlight लिंक:\n${testflight ? `\`${testflight}\`` : "❌ सेट नहीं"}`,
   adminEnterCrypto: "नया BEP20 वॉलेट पता भेजें। रद्द करने के लिए /cancel।",
   adminEnterUpi: "नया UPI ID (भारत) भेजें। रद्द करने के लिए /cancel।",
   adminEnterBinance: "नया Binance ID (Binance ऐप से अंकीय Pay ID) भेजें। रद्द करने के लिए /cancel।",
@@ -589,16 +650,20 @@ const hi: Dict = {
     "Crypto Pay API टोकन भेजें (@CryptoBot → Crypto Pay → Create App से लें)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
   adminEnterCryptoBotAssets:
     "अल्पविराम से अलग सूची भेजें (जैसे `USDT,TON,BTC,ETH`)। रद्द करने के लिए /cancel।",
+  adminEnterTestflight:
+    "नई TestFlight लिंक भेजें (जैसे `https://testflight.apple.com/join/XXXXXX`)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
   adminCryptoUpdated: "क्रिप्टो वॉलेट अपडेट हुआ।",
   adminUpiUpdated: "UPI ID अपडेट हुआ।",
   adminBinanceUpdated: "Binance ID अपडेट हुआ।",
   adminCryptoBotTokenUpdated: "Crypto Bot टोकन अपडेट हुआ।",
   adminCryptoBotAssetsUpdated: "Crypto Bot एसेट्स अपडेट हुए।",
+  adminTestflightUpdated: "TestFlight लिंक अपडेट हुई।",
   adminBtnSetCrypto: "💰  क्रिप्टो वॉलेट सेट करें",
   adminBtnSetUpi: "🇮🇳  UPI ID सेट करें",
   adminBtnSetBinance: "🟡  Binance ID सेट करें",
   adminBtnSetCryptoBotToken: "🤖  Crypto Bot टोकन",
   adminBtnSetCryptoBotAssets: "🪙  Crypto Bot एसेट्स",
+  adminBtnSetTestflight: "📲  TestFlight लिंक",
   adminInvalidNumber: "कृपया वैध सकारात्मक संख्या भेजें।",
   adminCancelled: "रद्द किया गया।",
   adminBtnAddAdmin: "➕  एडमिन जोड़ें",
