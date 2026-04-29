@@ -115,14 +115,19 @@ type Dict = {
     binanceId: string,
     cryptoBotToken: string,
     cryptoBotAssets: string,
-    testflightLink: string,
   ) => string;
   adminEnterCrypto: string;
   adminEnterUpi: string;
   adminEnterBinance: string;
   adminEnterCryptoBotToken: string;
   adminEnterCryptoBotAssets: string;
-  adminEnterTestflight: string;
+  adminPickGameForTestflight: string;
+  adminPickPeriodForTestflight: (game: string) => string;
+  adminEnterTestflightFor: (
+    game: string,
+    period: string,
+    current: string,
+  ) => string;
   adminCryptoUpdated: string;
   adminUpiUpdated: string;
   adminBinanceUpdated: string;
@@ -303,8 +308,8 @@ const en: Dict = {
   adminPickGameForView: "Pick a game to view keys",
   adminPickPeriodForView: (game) => `${game}\n\nPick a period`,
   adminKeyDeleted: "Key removed.",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
-    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nUPI ID (India):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\`\n\nTestFlight link:\n${testflight ? `\`${testflight}\`` : "❌ not set"}`,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `Payment settings\n\nCrypto wallet (BEP20):\n\`${wallet}\`\n\nUPI ID (India):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot token: ${cbToken ? "✅ set" : "❌ not set"}\nCrypto Bot assets: \`${cbAssets}\`\n\nTestFlight links: tap “📲  Set TestFlight link” to configure them per game and version.`,
   adminEnterCrypto: "Send the new BEP20 wallet address. Send /cancel to abort.",
   adminEnterUpi: "Send the new UPI ID (India). Send /cancel to abort.",
   adminEnterBinance: "Send the new Binance ID (numeric Pay ID from your Binance app). Send /cancel to abort.",
@@ -312,8 +317,10 @@ const en: Dict = {
     "Send the Crypto Pay API token (get it from @CryptoBot → Crypto Pay → Create App). Send `clear` to remove it. Send /cancel to abort.",
   adminEnterCryptoBotAssets:
     "Send a comma-separated list of accepted assets (e.g. `USDT,TON,BTC,ETH`). Send /cancel to abort.",
-  adminEnterTestflight:
-    "Send the new TestFlight invite link (e.g. `https://testflight.apple.com/join/XXXXXX`). Send `clear` to remove it. Send /cancel to abort.",
+  adminPickGameForTestflight: "Pick a game to set its TestFlight link",
+  adminPickPeriodForTestflight: (game) => `${game}\n\nPick a version (period)`,
+  adminEnterTestflightFor: (game, period, current) =>
+    `${game}  •  ${period}\n\nCurrent TestFlight link: ${current}\n\nSend the new TestFlight invite link (e.g. \`https://testflight.apple.com/join/XXXXXX\`). Send \`clear\` to remove it. Send /cancel to abort.`,
   adminCryptoUpdated: "Crypto wallet updated.",
   adminUpiUpdated: "UPI ID updated.",
   adminBinanceUpdated: "Binance ID updated.",
@@ -472,8 +479,8 @@ const ru: Dict = {
   adminPickGameForView: "Выберите игру для просмотра ключей",
   adminPickPeriodForView: (game) => `${game}\n\nВыберите период`,
   adminKeyDeleted: "Ключ удалён.",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
-    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nUPI ID (Индия):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\`\n\nСсылка TestFlight:\n${testflight ? `\`${testflight}\`` : "❌ не установлена"}`,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `Реквизиты\n\nКрипто-кошелёк (BEP20):\n\`${wallet}\`\n\nUPI ID (Индия):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nТокен Crypto Bot: ${cbToken ? "✅ установлен" : "❌ не установлен"}\nАктивы Crypto Bot: \`${cbAssets}\`\n\nСсылки TestFlight: нажмите «📲  Ссылка TestFlight», чтобы задать ссылку отдельно для каждой игры и тарифа.`,
   adminEnterCrypto: "Отправьте новый BEP20 адрес. /cancel — отменить.",
   adminEnterUpi: "Отправьте новый UPI ID (Индия). /cancel — отменить.",
   adminEnterBinance: "Отправьте новый Binance ID (числовой Pay ID из приложения Binance). /cancel — отменить.",
@@ -481,8 +488,10 @@ const ru: Dict = {
     "Отправьте Crypto Pay API токен (получите в @CryptoBot → Crypto Pay → Create App). Отправьте `clear`, чтобы удалить токен. /cancel — отменить.",
   adminEnterCryptoBotAssets:
     "Отправьте список активов через запятую (например `USDT,TON,BTC,ETH`). /cancel — отменить.",
-  adminEnterTestflight:
-    "Отправьте новую ссылку TestFlight (например `https://testflight.apple.com/join/XXXXXX`). Отправьте `clear`, чтобы удалить. /cancel — отменить.",
+  adminPickGameForTestflight: "Выберите игру для настройки ссылки TestFlight",
+  adminPickPeriodForTestflight: (game) => `${game}\n\nВыберите тариф (версию)`,
+  adminEnterTestflightFor: (game, period, current) =>
+    `${game}  •  ${period}\n\nТекущая ссылка TestFlight: ${current}\n\nОтправьте новую ссылку TestFlight (например \`https://testflight.apple.com/join/XXXXXX\`). Отправьте \`clear\`, чтобы удалить. /cancel — отменить.`,
   adminCryptoUpdated: "Крипто-кошелёк обновлён.",
   adminUpiUpdated: "UPI ID обновлён.",
   adminBinanceUpdated: "Binance ID обновлён.",
@@ -641,8 +650,8 @@ const hi: Dict = {
   adminPickGameForView: "कीज़ देखने के लिए गेम चुनें",
   adminPickPeriodForView: (game) => `${game}\n\nअवधि चुनें`,
   adminKeyDeleted: "की हटा दी गई।",
-  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets, testflight) =>
-    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nUPI ID (भारत):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\`\n\nTestFlight लिंक:\n${testflight ? `\`${testflight}\`` : "❌ सेट नहीं"}`,
+  adminSettingsBody: (wallet, upi, binanceId, cbToken, cbAssets) =>
+    `भुगतान सेटिंग्स\n\nक्रिप्टो वॉलेट (BEP20):\n\`${wallet}\`\n\nUPI ID (भारत):\n\`${upi}\`\n\nBinance ID:\n\`${binanceId}\`\n\nCrypto Bot टोकन: ${cbToken ? "✅ सेट" : "❌ सेट नहीं"}\nCrypto Bot एसेट्स: \`${cbAssets}\`\n\nTestFlight लिंक्स: प्रत्येक गेम और अवधि के लिए अलग-अलग सेट करने के लिए “📲  TestFlight लिंक” पर टैप करें।`,
   adminEnterCrypto: "नया BEP20 वॉलेट पता भेजें। रद्द करने के लिए /cancel।",
   adminEnterUpi: "नया UPI ID (भारत) भेजें। रद्द करने के लिए /cancel।",
   adminEnterBinance: "नया Binance ID (Binance ऐप से अंकीय Pay ID) भेजें। रद्द करने के लिए /cancel।",
@@ -650,8 +659,10 @@ const hi: Dict = {
     "Crypto Pay API टोकन भेजें (@CryptoBot → Crypto Pay → Create App से लें)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
   adminEnterCryptoBotAssets:
     "अल्पविराम से अलग सूची भेजें (जैसे `USDT,TON,BTC,ETH`)। रद्द करने के लिए /cancel।",
-  adminEnterTestflight:
-    "नई TestFlight लिंक भेजें (जैसे `https://testflight.apple.com/join/XXXXXX`)। हटाने के लिए `clear` भेजें। रद्द करने के लिए /cancel।",
+  adminPickGameForTestflight: "TestFlight लिंक सेट करने के लिए गेम चुनें",
+  adminPickPeriodForTestflight: (game) => `${game}\n\nअवधि (वर्शन) चुनें`,
+  adminEnterTestflightFor: (game, period, current) =>
+    `${game}  •  ${period}\n\nवर्तमान TestFlight लिंक: ${current}\n\nनई TestFlight लिंक भेजें (जैसे \`https://testflight.apple.com/join/XXXXXX\`)। हटाने के लिए \`clear\` भेजें। रद्द करने के लिए /cancel।`,
   adminCryptoUpdated: "क्रिप्टो वॉलेट अपडेट हुआ।",
   adminUpiUpdated: "UPI ID अपडेट हुआ।",
   adminBinanceUpdated: "Binance ID अपडेट हुआ।",

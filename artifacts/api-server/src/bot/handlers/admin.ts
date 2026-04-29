@@ -14,7 +14,8 @@ import {
   getPriceUsd,
   getResolvedBotAdminTelegramIds,
   getStats,
-  getTestflightLink,
+  getTestflightLinkFor,
+  setTestflightLinkFor,
   getUpiId,
   getUser,
   isBotAdminUser,
@@ -156,7 +157,6 @@ async function showAdminSettings(ctx: Context): Promise<void> {
       getBinanceId(),
       getCryptoBotToken(),
       getCryptoBotAssets(),
-      getTestflightLink(),
     ),
     adminSettingsKb(lang),
   );
@@ -259,7 +259,13 @@ export function registerAdminHandlers(bot: Bot): void {
     } catch (err) {
       logger.error({ err }, "Failed to deliver key to user");
     }
-    await sendPostDeliveryInfo(bot, order.user_telegram_id, userLang);
+    await sendPostDeliveryInfo(
+      bot,
+      order.user_telegram_id,
+      userLang,
+      order.game,
+      order.period,
+    );
   });
 
   // /adm — admin panel entrypoint
@@ -369,9 +375,54 @@ export function registerAdminHandlers(bot: Bot): void {
       setState(ctx.chat!.id, { kind: "await_cbassets" });
       await showMenuText(ctx, tr.adminEnterCryptoBotAssets, adminSettingsKb(lang));
     } else {
-      setState(ctx.chat!.id, { kind: "await_testflight" });
-      await showMenuText(ctx, tr.adminEnterTestflight, adminSettingsKb(lang));
+      // TestFlight links are configured per (game, period) — start by
+      // letting the admin pick the game.
+      await showMenuText(
+        ctx,
+        tr.adminPickGameForTestflight,
+        adminGamesKb(lang, "tf"),
+      );
     }
+  });
+
+  // Step 2: admin picked a game for the TestFlight link → ask for period.
+  bot.callbackQuery(/^adm:tf:game:(.+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const g = ctx.match![1]!;
+    if (!isGameId(g)) { await ctx.answerCallbackQuery(); return; }
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    await ctx.answerCallbackQuery();
+    await showMenuText(
+      ctx,
+      tr.adminPickPeriodForTestflight(tr.game[g]),
+      adminPeriodsKb(lang, "tf", g),
+    );
+  });
+
+  // Step 3: admin picked a period → prompt for the new TestFlight link.
+  bot.callbackQuery(/^adm:tf:period:([^:]+):([^:]+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const g = ctx.match![1]!;
+    const p = ctx.match![2]!;
+    if (!isGameId(g) || !isPeriodId(p)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    setState(ctx.chat!.id, { kind: "await_testflight", game: g, period: p });
+    await ctx.answerCallbackQuery();
+    const current = getTestflightLinkFor(g, p);
+    await showMenuText(
+      ctx,
+      tr.adminEnterTestflightFor(
+        tr.game[g],
+        tr.periodLabel[p],
+        current ? `\`${current}\`` : "—",
+      ),
+      adminSettingsKb(lang),
+    );
   });
 
   // Prices
@@ -651,7 +702,7 @@ export function registerAdminHandlers(bot: Bot): void {
     if (state.kind === "await_testflight") {
       const trimmed = text.trim();
       const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
-      setSetting("testflight_link", value);
+      setTestflightLinkFor(state.game, state.period, value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminTestflightUpdated, adminSettingsKb(lang));
       return;

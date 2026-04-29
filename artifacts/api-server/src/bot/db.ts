@@ -645,8 +645,39 @@ export function getCryptoBotAssets(): string {
   return getSetting("cryptobot_assets") || "USDT,TON";
 }
 
+// Returns the (legacy) global TestFlight link if set. New per-(game,
+// period) links live under `testflight_link:<game>:<period>` keys (see
+// `getTestflightLinkFor`). The global link is kept as a fallback so any
+// existing setup keeps working until the admin sets per-version links.
 export function getTestflightLink(): string {
   return getSetting("testflight_link") || "";
+}
+
+function tfKey(game: GameId, period: PeriodId): string {
+  return `testflight_link:${game}:${period}`;
+}
+
+export function getTestflightLinkFor(game: GameId, period: PeriodId): string {
+  // Per-(game, period) link first, then fall back to the global one so
+  // the admin can configure either granularity.
+  const v = getSetting(tfKey(game, period));
+  if (v) return v;
+  return getTestflightLink();
+}
+
+export function setTestflightLinkFor(
+  game: GameId,
+  period: PeriodId,
+  value: string,
+): void {
+  setSetting(tfKey(game, period), value);
+}
+
+export function hasTestflightLinkFor(
+  game: GameId,
+  period: PeriodId,
+): boolean {
+  return Boolean(getSetting(tfKey(game, period)));
 }
 
 // ---------- expiration reminders ----------

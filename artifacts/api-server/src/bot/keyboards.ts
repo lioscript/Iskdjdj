@@ -16,6 +16,7 @@ import {
   getPriceForMethod,
   getPriceInr,
   getPriceUsd,
+  hasTestflightLinkFor,
   listAvailableKeys,
   listBotAdmins,
   type BotAdminRow,
@@ -191,19 +192,22 @@ export function adminPanelKb(lang: Lang): InlineKeyboard {
     .text(tr.btnHome, "nav:home");
 }
 
-export function adminGamesKb(lang: Lang, intent: "price" | "addkeys" | "viewkeys"): InlineKeyboard {
+export function adminGamesKb(
+  lang: Lang,
+  intent: "price" | "addkeys" | "viewkeys" | "tf",
+): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard();
   for (const g of GAMES) {
     kb.text(tr.game[g.id], `adm:${intent}:game:${g.id}`).row();
   }
-  kb.text(tr.adminBack, "adm:home");
+  kb.text(tr.adminBack, intent === "tf" ? "adm:settings" : "adm:home");
   return kb;
 }
 
 export function adminPeriodsKb(
   lang: Lang,
-  intent: "price" | "addkeys" | "viewkeys",
+  intent: "price" | "addkeys" | "viewkeys" | "tf",
   game: GameId,
 ): InlineKeyboard {
   const tr = t(lang);
@@ -219,13 +223,17 @@ export function adminPeriodsKb(
       if (u !== null) parts.push(fmtUsd(u));
       if (i !== null) parts.push(fmtInr(i));
       suffix = parts.length ? `  —  ${parts.join("  /  ")}` : "";
+    } else if (intent === "tf") {
+      // Show whether a TestFlight link is set for this (game, period)
+      // so the admin can see at a glance which ones still need a link.
+      suffix = hasTestflightLinkFor(game, p) ? "  —  ✅" : "  —  ❌";
     } else {
       const n = countAvailableKeys(game, p);
       suffix = `  —  ${n} in stock`;
     }
     kb.text(`${tr.periodLabel[p]}${suffix}`, `adm:${intent}:period:${game}:${p}`).row();
   }
-  kb.text(tr.adminBack, `adm:${intent}`);
+  kb.text(tr.adminBack, intent === "tf" ? "adm:settings" : `adm:${intent}`);
   return kb;
 }
 
