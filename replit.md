@@ -14,8 +14,8 @@ the same Node.js process that runs the small Express API.
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Bot framework**: grammy (Telegram, long-polling)
-- **Bot database**: SQLite via better-sqlite3 (file at
-  `artifacts/api-server/data/winstar.db`)
+- **Bot database**: Replit PostgreSQL via postgres.js (persists across
+  redeployments; tables auto-created by `initDb()` at startup)
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 

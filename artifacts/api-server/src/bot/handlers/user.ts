@@ -55,17 +55,17 @@ function detectInitialLang(ctx: Context): Lang {
   return "en";
 }
 
-function getOrCreateUser(ctx: Context): { lang: Lang; firstName: string } {
+async function getOrCreateUser(ctx: Context): Promise<{ lang: Lang; firstName: string }> {
   const from = ctx.from;
   const fallback: Lang = detectInitialLang(ctx);
   if (!from) return { lang: fallback, firstName: "" };
-  const u = upsertUser({
+  const u = await upsertUser({
     telegramId: from.id,
     username: from.username ?? null,
     firstName: from.first_name ?? null,
     defaultLanguage: fallback,
   });
-  return { lang: u.language, firstName: u.first_name ?? from.first_name ?? "" };
+  return { lang: u.language as Lang, firstName: u.first_name ?? from.first_name ?? "" };
 }
 
 function fmtUsd(n: number): string {
@@ -73,43 +73,43 @@ function fmtUsd(n: number): string {
 }
 
 async function showMain(ctx: Context): Promise<void> {
-  const { lang, firstName } = getOrCreateUser(ctx);
+  const { lang, firstName } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuPhoto(ctx, tr.mainMenuTitle(firstName), mainMenuKb(lang));
 }
 
 async function showLangPicker(ctx: Context): Promise<void> {
   // Make sure the user row exists, but always show the prompt in English.
-  getOrCreateUser(ctx);
+  await getOrCreateUser(ctx);
   await showMenuText(ctx, LANGUAGE_PICKER_PROMPT, languagePickerKb());
 }
 
 async function showGames(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickGame, gamesKb(lang));
 }
 
 async function showPubg(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickPubgVariant, pubgVariantsKb(lang));
 }
 
 async function showCodm(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickCodmVariant, codmVariantsKb(lang));
 }
 
 async function showMlbb(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickMlbbVariant, mlbbVariantsKb(lang));
 }
 
 async function showAndroid(ctx: Context): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   await showMenuText(ctx, tr.pickAndroidVariant, androidVariantsKb(lang));
 }
@@ -119,7 +119,7 @@ async function showPaymentsForGame(
   ctx: Context,
   game: GameId,
 ): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   const header = `${tr.game[game]}\n\n${tr.pickPayment}`;
   await showMenuText(ctx, header, paymentsKbForGame(lang, game));
@@ -132,7 +132,7 @@ async function showPeriodsForMethod(
   game: GameId,
   method: PaymentMethod,
 ): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   const header = `${tr.game[game]}  •  ${tr.paymentLabel[method]}\n\n${tr.pickPeriod}`;
   await showMenuText(ctx, header, periodsKb(lang, game, method));
@@ -146,7 +146,7 @@ async function startPayment(
 ): Promise<void> {
   const from = ctx.from;
   if (!from) return;
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
   const { amount, currency } = getPriceForMethod(game, period, method);
   if (amount === null) {
@@ -170,7 +170,7 @@ async function startPayment(
     return;
   }
 
-  const orderId = createOrder({
+  const orderId = await createOrder({
     userTelegramId: from.id,
     game,
     period,
@@ -224,7 +224,7 @@ async function startPayment(
       );
       return;
     }
-    setOrderCryptobotInvoice(orderId, String(invoice.invoice_id), payUrl);
+    await setOrderCryptobotInvoice(orderId, String(invoice.invoice_id), payUrl);
     const assets = getCryptoBotAssets();
     const text = `${tr.cryptoBotTitle}\n\n${tr.cryptoBotBody(priceLabel, assets)}`;
     await showMenuText(ctx, text, payCryptoBotKb(lang, orderId, payUrl));
@@ -243,9 +243,9 @@ async function checkCryptoBotPayment(
   orderId: number,
   bot: Bot,
 ): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
-  const order = getOrder(orderId);
+  const order = await getOrder(orderId);
   if (!order || order.user_telegram_id !== ctx.from?.id) {
     await showMenuText(ctx, tr.adminOrderAlreadyProcessed, mainMenuKb(lang));
     return;
@@ -276,9 +276,9 @@ async function notifyAdminsOfOrder(
   bot: Bot,
   orderId: number,
 ): Promise<void> {
-  const order = getOrder(orderId);
+  const order = await getOrder(orderId);
   if (!order) return;
-  const user = getUser(order.user_telegram_id);
+  const user = await getUser(order.user_telegram_id);
   const lang: Lang = (user?.language as Lang) ?? "en";
   const tr = t(lang);
   const userLabel = user?.username
@@ -313,9 +313,9 @@ async function confirmPayment(
   orderId: number,
   bot: Bot,
 ): Promise<void> {
-  const { lang } = getOrCreateUser(ctx);
+  const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
-  const order = getOrder(orderId);
+  const order = await getOrder(orderId);
   if (!order || order.user_telegram_id !== ctx.from?.id) {
     await showMenuText(ctx, tr.adminOrderAlreadyProcessed, mainMenuKb(lang));
     return;
@@ -333,11 +333,11 @@ async function confirmPayment(
 export function registerUserHandlers(bot: Bot): void {
   bot.command("start", async (ctx) => {
     clearState(ctx.chat.id);
-    const existing = getUser(ctx.from?.id ?? 0);
+    const existing = await getUser(ctx.from?.id ?? 0);
     if (!existing) {
       // First time — create user (default lang) and show language picker.
       // The prompt is always in English so any new user can read it.
-      getOrCreateUser(ctx);
+      await getOrCreateUser(ctx);
       await showMenuText(ctx, LANGUAGE_PICKER_PROMPT, languagePickerKb());
       return;
     }
@@ -365,13 +365,13 @@ export function registerUserHandlers(bot: Bot): void {
       return;
     }
     if (ctx.from?.id) {
-      upsertUser({
+      await upsertUser({
         telegramId: ctx.from.id,
         username: ctx.from.username ?? null,
         firstName: ctx.from.first_name ?? null,
         defaultLanguage: code,
       });
-      setUserLanguage(ctx.from.id, code);
+      await setUserLanguage(ctx.from.id, code);
     }
     await ctx.answerCallbackQuery();
     await showMain(ctx);

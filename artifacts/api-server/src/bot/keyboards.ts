@@ -251,14 +251,14 @@ export function adminPriceCurrencyKb(
     .text(tr.adminBack, `adm:price:game:${game}`);
 }
 
-export function adminViewKeysKb(
+export async function adminViewKeysKb(
   lang: Lang,
   game: GameId,
   period: PeriodId,
-): InlineKeyboard {
+): Promise<InlineKeyboard> {
   const tr = t(lang);
   const kb = new InlineKeyboard();
-  const keys = listAvailableKeys(game, period);
+  const keys = await listAvailableKeys(game, period);
   for (const k of keys) {
     const label = k.value.length > 30 ? k.value.slice(0, 27) + "…" : k.value;
     kb.text(`✕  ${label}`, `adm:delkey:${k.id}:${game}:${period}`).row();

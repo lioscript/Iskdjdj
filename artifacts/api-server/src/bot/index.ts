@@ -48,16 +48,16 @@ const PERIOD_LABEL_KEY: Record<"day" | "week" | "month", "day" | "week" | "month
 async function sweepExpirationReminders(bot: Bot): Promise<void> {
   const kinds: ReminderKind[] = ["3d", "1d", "1h"];
   for (const kind of kinds) {
-    const orders = listOrdersDueForReminder(kind, REMINDER_WINDOWS_MS[kind]);
+    const orders = await listOrdersDueForReminder(kind, REMINDER_WINDOWS_MS[kind]);
     for (const order of orders) {
       // For 1-day plans the 3d/1d reminders don't make sense — only the
       // 1-hour reminder is relevant. Mark the unwanted ones as sent so
       // we don't keep re-querying them.
       if (order.period === "day" && (kind === "3d" || kind === "1d")) {
-        markReminderSent(order.id, kind);
+        await markReminderSent(order.id, kind);
         continue;
       }
-      const user = getUser(order.user_telegram_id);
+      const user = await getUser(order.user_telegram_id);
       const lang = user?.language ?? "en";
       const tr = t(lang);
       const gameLabel = getGameLabel(order.game);
@@ -72,7 +72,7 @@ async function sweepExpirationReminders(bot: Bot): Promise<void> {
         await bot.api.sendMessage(order.user_telegram_id, text, {
           parse_mode: "Markdown",
         });
-        markReminderSent(order.id, kind);
+        await markReminderSent(order.id, kind);
         logger.info(
           { orderId: order.id, kind, userId: order.user_telegram_id },
           "Expiration reminder sent",
@@ -82,7 +82,7 @@ async function sweepExpirationReminders(bot: Bot): Promise<void> {
         // chat is closed/blocked. Telegram will return 403 in that case.
         const e = err as { error_code?: number; description?: string };
         if (e?.error_code === 403) {
-          markReminderSent(order.id, kind);
+          await markReminderSent(order.id, kind);
           logger.warn(
             { orderId: order.id, kind },
             "Reminder skipped — user has blocked the bot",
@@ -96,18 +96,18 @@ async function sweepExpirationReminders(bot: Bot): Promise<void> {
 }
 
 async function sweepAdminExpired(bot: Bot): Promise<void> {
-  const orders = listOrdersDueForAdminExpired();
+  const orders = await listOrdersDueForAdminExpired();
   if (orders.length === 0) return;
   const adminIds = notifyableAdminIds();
   for (const order of orders) {
-    const user = getUser(order.user_telegram_id);
+    const user = await getUser(order.user_telegram_id);
     const baseName = user?.username
       ? `@${user.username}`
       : user?.first_name || `user`;
     const userLabel = `${baseName} (id: ${order.user_telegram_id})`;
     const gameLabel = getGameLabel(order.game);
     for (const adminId of adminIds) {
-      const adminUser = getUser(adminId);
+      const adminUser = await getUser(adminId);
       const lang = adminUser?.language ?? "en";
       const tr = t(lang);
       const periodLabel = tr.periodLabel[PERIOD_LABEL_KEY[order.period]];
@@ -121,7 +121,7 @@ async function sweepAdminExpired(bot: Bot): Promise<void> {
         );
       }
     }
-    markAdminNotifiedExpired(order.id);
+    await markAdminNotifiedExpired(order.id);
     logger.info(
       { orderId: order.id, userId: order.user_telegram_id },
       "Admins notified about expired key",
@@ -131,7 +131,7 @@ async function sweepAdminExpired(bot: Bot): Promise<void> {
 
 async function sweepCryptoBotPayments(bot: Bot): Promise<void> {
   if (!cbIsConfigured()) return;
-  const pending = listPendingCryptobotOrders();
+  const pending = await listPendingCryptobotOrders();
   if (pending.length === 0) return;
   const ids = pending
     .map((o) => o.cryptobot_invoice_id)

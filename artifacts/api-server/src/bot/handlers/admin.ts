@@ -14,6 +14,7 @@ import {
   getPriceUsd,
   getResolvedBotAdminTelegramIds,
   getStats,
+  getCachedUserLanguage,
   getTestflightLinkFor,
   setTestflightLinkFor,
   getUpiId,
@@ -92,8 +93,7 @@ function isAdmin(ctx: Context): boolean {
 }
 
 function getLang(ctx: Context): Lang {
-  const u = ctx.from?.id ? getUser(ctx.from.id) : undefined;
-  return (u?.language as Lang) ?? "en";
+  return ctx.from?.id ? getCachedUserLanguage(ctx.from.id) : "en";
 }
 
 async function showAdminHome(ctx: Context): Promise<void> {
@@ -105,12 +105,12 @@ async function showAdminHome(ctx: Context): Promise<void> {
 async function showStats(ctx: Context): Promise<void> {
   const lang = getLang(ctx);
   const tr = t(lang);
-  const s = getStats();
+  const [s, users] = await Promise.all([getStats(), countUsers()]);
   const text = tr.adminStatsBody(
     s.sales,
     fmtUsd(s.revenueUsd),
     fmtInr(s.revenueInr),
-    countUsers(),
+    users,
   );
   await showMenuText(ctx, text, adminPanelKb(lang));
 }
@@ -171,7 +171,7 @@ export function registerAdminHandlers(bot: Bot): void {
     }
     const action = ctx.match![1] as "approve" | "reject";
     const orderId = Number(ctx.match![2]);
-    const order = getOrder(orderId);
+    const order = await getOrder(orderId);
     if (!order) {
       await ctx.answerCallbackQuery({ text: "Order not found" });
       return;
@@ -186,11 +186,11 @@ export function registerAdminHandlers(bot: Bot): void {
       return;
     }
     const userLang =
-      (getUser(order.user_telegram_id)?.language as Lang) ?? "en";
+      ((await getUser(order.user_telegram_id))?.language as Lang) ?? "en";
     const userTr = t(userLang);
 
     if (action === "reject") {
-      rejectOrder(orderId);
+      await rejectOrder(orderId);
       await ctx.answerCallbackQuery({ text: "Rejected" });
       try {
         await ctx.editMessageText(
@@ -213,11 +213,11 @@ export function registerAdminHandlers(bot: Bot): void {
     }
 
     // Approve: assign a key and deliver to user
-    const key = reserveKeyForOrder(orderId, order.game, order.period);
+    const key = await reserveKeyForOrder(orderId, order.game, order.period);
     if (!key) {
       await ctx.answerCallbackQuery({ text: "Out of stock" });
       // Mark as rejected so admin doesn't get stuck
-      rejectOrder(orderId);
+      await rejectOrder(orderId);
       try {
         await ctx.editMessageText(
           `${ctx.callbackQuery.message?.text ?? ""}\n\n— Out of stock, marked rejected`,
@@ -276,7 +276,7 @@ export function registerAdminHandlers(bot: Bot): void {
       return;
     }
     if (ctx.from) {
-      upsertUser({
+      await upsertUser({
         telegramId: ctx.from.id,
         username: ctx.from.username ?? null,
         firstName: ctx.from.first_name ?? null,
@@ -342,7 +342,7 @@ export function registerAdminHandlers(bot: Bot): void {
     const id = Number(ctx.match![1]);
     const lang = getLang(ctx);
     const tr = t(lang);
-    removeBotAdminById(id);
+    await removeBotAdminById(id);
     await ctx.answerCallbackQuery({ text: tr.adminAdminRemoved });
     await showAdminsList(ctx);
   });
@@ -593,7 +593,7 @@ export function registerAdminHandlers(bot: Bot): void {
       n === 0
         ? tr.adminNoKeys
         : tr.adminKeysList(tr.game[g], tr.periodLabel[p], n);
-    await showMenuText(ctx, text, adminViewKeysKb(lang, g, p));
+    await showMenuText(ctx, text, await adminViewKeysKb(lang, g, p));
   });
 
   bot.callbackQuery(/^adm:delkey:(\d+):([^:]+):([^:]+)$/, async (ctx) => {
@@ -602,7 +602,7 @@ export function registerAdminHandlers(bot: Bot): void {
     const g = ctx.match![2]!;
     const p = ctx.match![3]!;
     if (!isGameId(g) || !isPeriodId(p)) { await ctx.answerCallbackQuery(); return; }
-    deleteKey(id);
+    await deleteKey(id);
     const lang = getLang(ctx);
     const tr = t(lang);
     await ctx.answerCallbackQuery({ text: tr.adminKeyDeleted });
@@ -611,7 +611,7 @@ export function registerAdminHandlers(bot: Bot): void {
       n === 0
         ? tr.adminNoKeys
         : tr.adminKeysList(tr.game[g], tr.periodLabel[p], n);
-    await showMenuText(ctx, text, adminViewKeysKb(lang, g, p));
+    await showMenuText(ctx, text, await adminViewKeysKb(lang, g, p));
   });
 
   // Free-text input flows for admin (price, keys, settings)
@@ -640,9 +640,9 @@ export function registerAdminHandlers(bot: Bot): void {
         return;
       }
       if (state.currency === "inr") {
-        setPriceInr(state.game, state.period, n);
+        await setPriceInr(state.game, state.period, n);
       } else {
-        setPriceUsd(state.game, state.period, n);
+        await setPriceUsd(state.game, state.period, n);
       }
       const formatted = state.currency === "inr" ? fmtInr(n) : fmtUsd(n);
       clearState(ctx.chat.id);
@@ -663,28 +663,28 @@ export function registerAdminHandlers(bot: Bot): void {
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
-      const n = addKeys(state.game, state.period, lines);
+      const n = await addKeys(state.game, state.period, lines);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminKeysAdded(n), adminPanelKb(lang));
       return;
     }
 
     if (state.kind === "await_crypto") {
-      setSetting("crypto_wallet", text.trim());
+      await setSetting("crypto_wallet", text.trim());
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminCryptoUpdated, adminSettingsKb(lang));
       return;
     }
 
     if (state.kind === "await_upi") {
-      setSetting("upi_id", text.trim());
+      await setSetting("upi_id", text.trim());
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminUpiUpdated, adminSettingsKb(lang));
       return;
     }
 
     if (state.kind === "await_binance") {
-      setSetting("binance_id", text.trim());
+      await setSetting("binance_id", text.trim());
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminBinanceUpdated, adminSettingsKb(lang));
       return;
@@ -693,7 +693,7 @@ export function registerAdminHandlers(bot: Bot): void {
     if (state.kind === "await_cbtoken") {
       const trimmed = text.trim();
       const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
-      setSetting("cryptobot_token", value);
+      await setSetting("cryptobot_token", value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminCryptoBotTokenUpdated, adminSettingsKb(lang));
       return;
@@ -702,14 +702,14 @@ export function registerAdminHandlers(bot: Bot): void {
     if (state.kind === "await_testflight") {
       const trimmed = text.trim();
       const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
-      setTestflightLinkFor(state.game, state.period, value);
+      await setTestflightLinkFor(state.game, state.period, value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminTestflightUpdated, adminSettingsKb(lang));
       return;
     }
 
     if (state.kind === "await_admin_username") {
-      const result = addBotAdminByUsername(text, ctx.from?.id ?? null);
+      const result = await addBotAdminByUsername(text, ctx.from?.id ?? null);
       if (!result.ok) {
         if (result.reason === "duplicate") {
           await showMenuText(ctx, tr.adminAddAdminDuplicate, adminPanelKb(lang));
@@ -737,7 +737,7 @@ export function registerAdminHandlers(bot: Bot): void {
         await showMenuText(ctx, tr.adminInvalidNumber, adminSettingsKb(lang));
         return;
       }
-      setSetting("cryptobot_assets", cleaned);
+      await setSetting("cryptobot_assets", cleaned);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminCryptoBotAssetsUpdated, adminSettingsKb(lang));
       return;

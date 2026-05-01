@@ -81,7 +81,7 @@ app.post(
     if (payload.update_type !== "invoice_paid") return;
     const invoiceId = payload.payload?.invoice_id;
     if (invoiceId === undefined) return;
-    const order = getOrderByCryptobotInvoice(String(invoiceId));
+    const order = await getOrderByCryptobotInvoice(String(invoiceId));
     if (!order) {
       logger.warn({ invoiceId }, "Crypto Pay webhook: no matching order");
       return;

@@ -51,16 +51,16 @@ export async function deliverPaidOrder(
   bot: Bot,
   orderId: number,
 ): Promise<"delivered" | "out_of_stock" | "already_processed" | "not_found"> {
-  const order = getOrder(orderId);
+  const order = await getOrder(orderId);
   if (!order) return "not_found";
   if (order.status !== "pending") return "already_processed";
 
-  const userLang = (getUser(order.user_telegram_id)?.language as Lang) ?? "en";
+  const userLang = ((await getUser(order.user_telegram_id))?.language as Lang) ?? "en";
   const userTr = t(userLang);
 
-  const key = reserveKeyForOrder(orderId, order.game, order.period);
+  const key = await reserveKeyForOrder(orderId, order.game, order.period);
   if (!key) {
-    rejectOrder(orderId);
+    await rejectOrder(orderId);
     try {
       await bot.api.sendMessage(order.user_telegram_id, userTr.outOfStock, {
         reply_markup: mainMenuKb(userLang),
