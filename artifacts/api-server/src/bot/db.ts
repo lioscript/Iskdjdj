@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import postgres from "postgres";
+import Database from "better-sqlite3";
 import {
   PERIOD_DURATION_MS,
   type GameId,
@@ -35,28 +35,15 @@ const ARTIFACT_ROOT = findArtifactRoot();
 export const POSTER_PATH = path.join(ARTIFACT_ROOT, "assets", "poster.jpeg");
 
 // ---------------------------------------------------------------------------
-// PostgreSQL connection
+// SQLite connection
 // ---------------------------------------------------------------------------
 
-const DATABASE_URL = process.env["DATABASE_URL"];
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is not set");
-}
+const DB_PATH = process.env["DATABASE_PATH"] ?? path.join(ARTIFACT_ROOT, "data", "bot.db");
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-const sql = postgres(DATABASE_URL, {
-  // Parse BIGINT (pg type 20) as JS number instead of string.
-  // Telegram IDs and timestamps comfortably fit in a 64-bit float (< 2^53).
-  types: {
-    bigint: {
-      to: 20,
-      from: [20],
-      serialize: (v: number | string) => String(v),
-      parse: (v: string) => Number(v),
-    },
-  },
-  // Suppress NOTICE messages (from CREATE TABLE IF NOT EXISTS, etc.)
-  onnotice: () => {},
-});
+const db = new Database(DB_PATH);
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
 // ---------------------------------------------------------------------------
 // In-memory caches (populated during initDb, kept up-to-date by setters)
@@ -65,7 +52,6 @@ const sql = postgres(DATABASE_URL, {
 const priceCache = new Map<string, { usd: number | null; inr: number | null }>();
 const settingsCache = new Map<string, string>();
 const keyCountCache = new Map<string, number>();
-// Keeps user languages in memory so getLang() can remain synchronous in handlers.
 const userLangCache = new Map<number, Lang>();
 
 function priceCacheKey(game: string, period: string): string {
@@ -87,85 +73,73 @@ let botAdminsCache: BotAdminRow[] = [];
 // ---------------------------------------------------------------------------
 
 export async function initDb(): Promise<void> {
-  // Create tables
-  await sql`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      telegram_id BIGINT PRIMARY KEY,
+      telegram_id INTEGER PRIMARY KEY,
       username    TEXT,
       first_name  TEXT,
       language    TEXT NOT NULL DEFAULT 'en',
-      created_at  BIGINT NOT NULL
-    )
-  `;
+      created_at  INTEGER NOT NULL
+    );
 
-  await sql`
     CREATE TABLE IF NOT EXISTS prices (
       game       TEXT NOT NULL,
       period     TEXT NOT NULL,
       amount_usd REAL,
       amount_inr REAL,
       PRIMARY KEY (game, period)
-    )
-  `;
+    );
 
-  await sql`
     CREATE TABLE IF NOT EXISTS keys (
-      id         SERIAL PRIMARY KEY,
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
       game       TEXT NOT NULL,
       period     TEXT NOT NULL,
       value      TEXT NOT NULL,
       used       INTEGER NOT NULL DEFAULT 0,
-      created_at BIGINT NOT NULL
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS idx_keys_avail ON keys(game, period, used)`;
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_keys_avail ON keys(game, period, used);
 
-  await sql`
     CREATE TABLE IF NOT EXISTS orders (
-      id                    SERIAL PRIMARY KEY,
-      user_telegram_id      BIGINT NOT NULL,
-      game                  TEXT NOT NULL,
-      period                TEXT NOT NULL,
-      payment_method        TEXT NOT NULL,
-      amount_usd            REAL NOT NULL DEFAULT 0,
-      amount_inr            REAL,
-      status                TEXT NOT NULL DEFAULT 'pending',
-      delivered_key_id      INTEGER,
-      created_at            BIGINT NOT NULL,
-      decided_at            BIGINT,
-      cryptobot_invoice_id  TEXT,
-      cryptobot_pay_url     TEXT,
-      expires_at            BIGINT,
-      reminded_3d           INTEGER NOT NULL DEFAULT 0,
-      reminded_1d           INTEGER NOT NULL DEFAULT 0,
-      reminded_1h           INTEGER NOT NULL DEFAULT 0,
+      id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_telegram_id       INTEGER NOT NULL,
+      game                   TEXT NOT NULL,
+      period                 TEXT NOT NULL,
+      payment_method         TEXT NOT NULL,
+      amount_usd             REAL NOT NULL DEFAULT 0,
+      amount_inr             REAL,
+      status                 TEXT NOT NULL DEFAULT 'pending',
+      delivered_key_id       INTEGER,
+      created_at             INTEGER NOT NULL,
+      decided_at             INTEGER,
+      cryptobot_invoice_id   TEXT,
+      cryptobot_pay_url      TEXT,
+      expires_at             INTEGER,
+      reminded_3d            INTEGER NOT NULL DEFAULT 0,
+      reminded_1d            INTEGER NOT NULL DEFAULT 0,
+      reminded_1h            INTEGER NOT NULL DEFAULT 0,
       admin_notified_expired INTEGER NOT NULL DEFAULT 0
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_telegram_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_orders_cryptobot ON orders(cryptobot_invoice_id) WHERE cryptobot_invoice_id IS NOT NULL`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_orders_expires ON orders(expires_at) WHERE expires_at IS NOT NULL AND status = 'delivered'`;
+    );
+    CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_cryptobot ON orders(cryptobot_invoice_id) WHERE cryptobot_invoice_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_orders_expires ON orders(expires_at) WHERE expires_at IS NOT NULL AND status = 'delivered';
 
-  await sql`
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    )
-  `;
+    );
 
-  await sql`
     CREATE TABLE IF NOT EXISTS bot_admins (
-      id                   SERIAL PRIMARY KEY,
-      telegram_id          BIGINT UNIQUE,
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      telegram_id          INTEGER UNIQUE,
       username             TEXT,
-      added_at             BIGINT NOT NULL,
-      added_by_telegram_id BIGINT
-    )
-  `;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_admins_username ON bot_admins(LOWER(username)) WHERE username IS NOT NULL`;
+      added_at             INTEGER NOT NULL,
+      added_by_telegram_id INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_admins_username ON bot_admins(LOWER(username)) WHERE username IS NOT NULL;
+  `);
 
-  // Seed default prices (INSERT … ON CONFLICT DO NOTHING = INSERT OR IGNORE)
   const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number }> = [
     { game: "bgmi", period: "day", amount_usd: 5 },
     { game: "bgmi", period: "week", amount_usd: 20 },
@@ -207,12 +181,14 @@ export async function initDb(): Promise<void> {
     { game: "android_nonroot", period: "week", amount_usd: 18 },
     { game: "android_nonroot", period: "month", amount_usd: 45 },
   ];
+
+  const insertPrice = db.prepare(`
+    INSERT INTO prices (game, period, amount_usd)
+    VALUES (?, ?, ?)
+    ON CONFLICT (game, period) DO NOTHING
+  `);
   for (const p of DEFAULT_PRICES) {
-    await sql`
-      INSERT INTO prices (game, period, amount_usd)
-      VALUES (${p.game}, ${p.period}, ${p.amount_usd})
-      ON CONFLICT (game, period) DO NOTHING
-    `;
+    insertPrice.run(p.game, p.period, p.amount_usd);
   }
 
   const DEFAULT_SETTINGS: Record<string, string> = {
@@ -223,43 +199,38 @@ export async function initDb(): Promise<void> {
     cryptobot_assets: "USDT,TON,BTC,ETH,BNB,TRX",
     testflight_link: "",
   };
+  const insertSetting = db.prepare(`
+    INSERT INTO settings (key, value)
+    VALUES (?, ?)
+    ON CONFLICT (key) DO NOTHING
+  `);
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-    await sql`
-      INSERT INTO settings (key, value)
-      VALUES (${k}, ${v})
-      ON CONFLICT (key) DO NOTHING
-    `;
+    insertSetting.run(k, v);
   }
 
-  // Populate in-memory caches from DB
-  const priceRows = await sql<{ game: string; period: string; amount_usd: number | null; amount_inr: number | null }[]>`
-    SELECT game, period, amount_usd, amount_inr FROM prices
-  `;
+  const priceRows = db.prepare(`SELECT game, period, amount_usd, amount_inr FROM prices`).all() as {
+    game: string; period: string; amount_usd: number | null; amount_inr: number | null;
+  }[];
   for (const r of priceRows) {
-    priceCache.set(priceCacheKey(r.game, r.period), {
-      usd: r.amount_usd,
-      inr: r.amount_inr,
-    });
+    priceCache.set(priceCacheKey(r.game, r.period), { usd: r.amount_usd, inr: r.amount_inr });
   }
 
-  const settingRows = await sql<{ key: string; value: string }[]>`
-    SELECT key, value FROM settings
-  `;
+  const settingRows = db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[];
   for (const r of settingRows) {
     settingsCache.set(r.key, r.value);
   }
 
-  const keyCountRows = await sql<{ game: string; period: string; n: number }[]>`
+  const keyCountRows = db.prepare(`
     SELECT game, period, COUNT(*) AS n FROM keys WHERE used = 0 GROUP BY game, period
-  `;
+  `).all() as { game: string; period: string; n: number }[];
   for (const r of keyCountRows) {
     keyCountCache.set(priceCacheKey(r.game, r.period), Number(r.n));
   }
 
-  const adminRows = await sql<BotAdminRow[]>`
+  const adminRows = db.prepare(`
     SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins ORDER BY added_at ASC
-  `;
-  botAdminsCache = adminRows as BotAdminRow[];
+  `).all() as BotAdminRow[];
+  botAdminsCache = adminRows;
 }
 
 // ---------------------------------------------------------------------------
@@ -275,11 +246,11 @@ export type UserRow = {
 };
 
 export async function getUser(telegramId: number): Promise<UserRow | undefined> {
-  const rows = await sql<UserRow[]>`
+  const row = db.prepare(`
     SELECT telegram_id, username, first_name, language, created_at
-    FROM users WHERE telegram_id = ${telegramId}
-  `;
-  return rows[0];
+    FROM users WHERE telegram_id = ?
+  `).get(telegramId) as UserRow | undefined;
+  return row;
 }
 
 export async function upsertUser(args: {
@@ -288,36 +259,33 @@ export async function upsertUser(args: {
   firstName: string | null;
   defaultLanguage: Lang;
 }): Promise<UserRow> {
-  const rows = await sql<UserRow[]>`
+  db.prepare(`
     INSERT INTO users (telegram_id, username, first_name, language, created_at)
-    VALUES (${args.telegramId}, ${args.username}, ${args.firstName}, ${args.defaultLanguage}, ${Date.now()})
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (telegram_id) DO UPDATE
-      SET username = EXCLUDED.username, first_name = EXCLUDED.first_name
-    RETURNING telegram_id, username, first_name, language, created_at
-  `;
-  const row = rows[0]!;
+      SET username = excluded.username, first_name = excluded.first_name
+  `).run(args.telegramId, args.username, args.firstName, args.defaultLanguage, Date.now());
+  const row = db.prepare(`SELECT telegram_id, username, first_name, language, created_at FROM users WHERE telegram_id = ?`).get(args.telegramId) as UserRow;
   userLangCache.set(row.telegram_id, row.language as Lang);
   return row;
 }
 
 export async function setUserLanguage(telegramId: number, lang: Lang): Promise<void> {
-  await sql`UPDATE users SET language = ${lang} WHERE telegram_id = ${telegramId}`;
+  db.prepare(`UPDATE users SET language = ? WHERE telegram_id = ?`).run(lang, telegramId);
   userLangCache.set(telegramId, lang);
 }
 
-// Synchronous language lookup backed by the in-memory cache.
-// Falls back to 'en' if the user is not in cache yet (e.g. first message).
 export function getCachedUserLanguage(telegramId: number): Lang {
   return userLangCache.get(telegramId) ?? "en";
 }
 
 export async function countUsers(): Promise<number> {
-  const rows = await sql<{ n: number }[]>`SELECT COUNT(*) AS n FROM users`;
-  return Number(rows[0]!.n);
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM users`).get() as { n: number };
+  return Number(row.n);
 }
 
 // ---------------------------------------------------------------------------
-// prices (write functions are async, read functions use the in-memory cache)
+// prices
 // ---------------------------------------------------------------------------
 
 export type PriceCurrency = "usd" | "inr";
@@ -331,21 +299,21 @@ export function getPriceInr(game: GameId, period: PeriodId): number | null {
 }
 
 export async function setPriceUsd(game: GameId, period: PeriodId, amount: number): Promise<void> {
-  await sql`
+  db.prepare(`
     INSERT INTO prices (game, period, amount_usd)
-    VALUES (${game}, ${period}, ${amount})
-    ON CONFLICT (game, period) DO UPDATE SET amount_usd = EXCLUDED.amount_usd
-  `;
+    VALUES (?, ?, ?)
+    ON CONFLICT (game, period) DO UPDATE SET amount_usd = excluded.amount_usd
+  `).run(game, period, amount);
   const entry = priceCache.get(priceCacheKey(game, period)) ?? { usd: null, inr: null };
   priceCache.set(priceCacheKey(game, period), { ...entry, usd: amount });
 }
 
 export async function setPriceInr(game: GameId, period: PeriodId, amount: number): Promise<void> {
-  await sql`
+  db.prepare(`
     INSERT INTO prices (game, period, amount_inr)
-    VALUES (${game}, ${period}, ${amount})
-    ON CONFLICT (game, period) DO UPDATE SET amount_inr = EXCLUDED.amount_inr
-  `;
+    VALUES (?, ?, ?)
+    ON CONFLICT (game, period) DO UPDATE SET amount_inr = excluded.amount_inr
+  `).run(game, period, amount);
   const entry = priceCache.get(priceCacheKey(game, period)) ?? { usd: null, inr: null };
   priceCache.set(priceCacheKey(game, period), { ...entry, inr: amount });
 }
@@ -370,12 +338,13 @@ export async function addKeys(
   period: PeriodId,
   values: string[],
 ): Promise<number> {
+  const insert = db.prepare(`INSERT INTO keys (game, period, value, used, created_at) VALUES (?, ?, ?, 0, ?)`);
   let n = 0;
   const now = Date.now();
   for (const v of values) {
     const trimmed = v.trim();
     if (!trimmed) continue;
-    await sql`INSERT INTO keys (game, period, value, used, created_at) VALUES (${game}, ${period}, ${trimmed}, 0, ${now})`;
+    insert.run(game, period, trimmed, now);
     n++;
   }
   const k = priceCacheKey(game, period);
@@ -391,57 +360,55 @@ export async function listAvailableKeys(
   game: GameId,
   period: PeriodId,
 ): Promise<{ id: number; value: string }[]> {
-  const rows = await sql<{ id: number; value: string }[]>`
-    SELECT id, value FROM keys WHERE game = ${game} AND period = ${period} AND used = 0 ORDER BY id ASC LIMIT 50
-  `;
-  return rows;
+  return db.prepare(`
+    SELECT id, value FROM keys WHERE game = ? AND period = ? AND used = 0 ORDER BY id ASC LIMIT 50
+  `).all(game, period) as { id: number; value: string }[];
 }
 
 export async function deleteKey(id: number): Promise<void> {
-  // Find the key's game+period first so we can update the count cache.
-  const rows = await sql<{ game: string; period: string }[]>`
-    SELECT game, period FROM keys WHERE id = ${id}
-  `;
-  await sql`DELETE FROM keys WHERE id = ${id}`;
-  if (rows[0]) {
-    const k = priceCacheKey(rows[0].game, rows[0].period);
+  const row = db.prepare(`SELECT game, period FROM keys WHERE id = ?`).get(id) as { game: string; period: string } | undefined;
+  db.prepare(`DELETE FROM keys WHERE id = ?`).run(id);
+  if (row) {
+    const k = priceCacheKey(row.game, row.period);
     keyCountCache.set(k, Math.max(0, (keyCountCache.get(k) ?? 1) - 1));
   }
 }
 
-// Reserve a key for an order atomically; also stamps expires_at on the order.
 export async function reserveKeyForOrder(
   orderId: number,
   game: GameId,
   period: PeriodId,
 ): Promise<{ id: number; value: string } | null> {
-  const result = await sql.begin(async (txSql) => {
-    const keyRows = await txSql<{ id: number; value: string }[]>`
+  const doReserve = db.transaction((oId: number, g: string, p: string) => {
+    const key = db.prepare(`
       SELECT id, value FROM keys
-      WHERE game = ${game} AND period = ${period} AND used = 0
+      WHERE game = ? AND period = ? AND used = 0
       ORDER BY id ASC LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `;
-    if (!keyRows[0]) return null;
-    const key = keyRows[0];
+    `).get(g, p) as { id: number; value: string } | undefined;
+
+    if (!key) return null;
+
     const now = Date.now();
-    const expiresAt = now + PERIOD_DURATION_MS[period];
-    await txSql`UPDATE keys SET used = 1 WHERE id = ${key.id}`;
-    await txSql`
+    const expiresAt = now + PERIOD_DURATION_MS[p as PeriodId];
+
+    db.prepare(`UPDATE keys SET used = 1 WHERE id = ?`).run(key.id);
+    db.prepare(`
       UPDATE orders
-      SET delivered_key_id = ${key.id},
+      SET delivered_key_id = ?,
           status = 'delivered',
-          decided_at = ${now},
-          expires_at = ${expiresAt},
+          decided_at = ?,
+          expires_at = ?,
           reminded_3d = 0,
           reminded_1d = 0,
           reminded_1h = 0
-      WHERE id = ${orderId}
-    `;
-    // Hard-delete the key after delivery (one-time use)
-    await txSql`DELETE FROM keys WHERE id = ${key.id}`;
+      WHERE id = ?
+    `).run(key.id, now, expiresAt, oId);
+    db.prepare(`DELETE FROM keys WHERE id = ?`).run(key.id);
+
     return key;
   });
+
+  const result = doReserve(orderId, game, period) as { id: number; value: string } | null;
   if (result) {
     const k = priceCacheKey(game, period);
     keyCountCache.set(k, Math.max(0, (keyCountCache.get(k) ?? 1) - 1));
@@ -484,27 +451,31 @@ export async function createOrder(args: {
   amountUsd: number;
   amountInr?: number | null;
 }): Promise<number> {
-  const rows = await sql<{ id: number }[]>`
+  const result = db.prepare(`
     INSERT INTO orders (user_telegram_id, game, period, payment_method, amount_usd, amount_inr, status, created_at)
-    VALUES (${args.userTelegramId}, ${args.game}, ${args.period}, ${args.paymentMethod},
-            ${args.amountUsd}, ${args.amountInr ?? null}, 'pending', ${Date.now()})
-    RETURNING id
-  `;
-  return rows[0]!.id;
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+  `).run(
+    args.userTelegramId,
+    args.game,
+    args.period,
+    args.paymentMethod,
+    args.amountUsd,
+    args.amountInr ?? null,
+    Date.now(),
+  );
+  return Number(result.lastInsertRowid);
 }
 
 export async function getOrder(id: number): Promise<OrderRow | undefined> {
-  const rows = await sql<OrderRow[]>`SELECT * FROM orders WHERE id = ${id}`;
-  return rows[0];
+  return db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id) as OrderRow | undefined;
 }
 
 export async function rejectOrder(id: number): Promise<boolean> {
-  const rows = await sql<{ id: number }[]>`
-    UPDATE orders SET status = 'rejected', decided_at = ${Date.now()}
-    WHERE id = ${id} AND status = 'pending'
-    RETURNING id
-  `;
-  return rows.length > 0;
+  const result = db.prepare(`
+    UPDATE orders SET status = 'rejected', decided_at = ?
+    WHERE id = ? AND status = 'pending'
+  `).run(Date.now(), id);
+  return result.changes > 0;
 }
 
 export async function setOrderCryptobotInvoice(
@@ -512,27 +483,24 @@ export async function setOrderCryptobotInvoice(
   invoiceId: string,
   payUrl: string,
 ): Promise<void> {
-  await sql`
-    UPDATE orders SET cryptobot_invoice_id = ${invoiceId}, cryptobot_pay_url = ${payUrl}
-    WHERE id = ${orderId}
-  `;
+  db.prepare(`
+    UPDATE orders SET cryptobot_invoice_id = ?, cryptobot_pay_url = ?
+    WHERE id = ?
+  `).run(invoiceId, payUrl, orderId);
 }
 
 export async function getOrderByCryptobotInvoice(
   invoiceId: string,
 ): Promise<OrderRow | undefined> {
-  const rows = await sql<OrderRow[]>`
-    SELECT * FROM orders WHERE cryptobot_invoice_id = ${invoiceId}
-  `;
-  return rows[0];
+  return db.prepare(`SELECT * FROM orders WHERE cryptobot_invoice_id = ?`).get(invoiceId) as OrderRow | undefined;
 }
 
 export async function listPendingCryptobotOrders(): Promise<OrderRow[]> {
-  return sql<OrderRow[]>`
+  return db.prepare(`
     SELECT * FROM orders
     WHERE payment_method = 'cryptobot' AND status = 'pending' AND cryptobot_invoice_id IS NOT NULL
     ORDER BY id ASC LIMIT 100
-  `;
+  `).all() as OrderRow[];
 }
 
 export async function getStats(): Promise<{
@@ -540,90 +508,78 @@ export async function getStats(): Promise<{
   revenueUsd: number;
   revenueInr: number;
 }> {
-  const rows = await sql<{ n: number; ru: number; ri: number }[]>`
+  const row = db.prepare(`
     SELECT COUNT(*) AS n,
            COALESCE(SUM(amount_usd), 0) AS ru,
            COALESCE(SUM(amount_inr), 0) AS ri
     FROM orders
     WHERE status = 'delivered'
-  `;
-  const r = rows[0]!;
-  return { sales: Number(r.n), revenueUsd: Number(r.ru), revenueInr: Number(r.ri) };
+  `).get() as { n: number; ru: number; ri: number };
+  return { sales: Number(row.n), revenueUsd: Number(row.ru), revenueInr: Number(row.ri) };
 }
 
 // ---------------------------------------------------------------------------
 // expiration reminders
 // ---------------------------------------------------------------------------
 
-const REMINDER_COL: Record<ReminderKind, "reminded_3d" | "reminded_1d" | "reminded_1h"> = {
-  "3d": "reminded_3d",
-  "1d": "reminded_1d",
-  "1h": "reminded_1h",
-};
-
 export async function listOrdersDueForReminder(
   kind: ReminderKind,
   windowMs: number,
 ): Promise<OrderRow[]> {
   const now = Date.now();
-  const col = REMINDER_COL[kind];
-  // postgres.js doesn't support dynamic column identifiers in tagged templates;
-  // use separate queries per kind to keep it safe.
   if (kind === "3d") {
-    return sql<OrderRow[]>`
+    return db.prepare(`
       SELECT * FROM orders
       WHERE status = 'delivered' AND expires_at IS NOT NULL
         AND reminded_3d = 0
-        AND expires_at > ${now} AND expires_at <= ${now + windowMs}
+        AND expires_at > ? AND expires_at <= ?
       ORDER BY expires_at ASC LIMIT 200
-    `;
+    `).all(now, now + windowMs) as OrderRow[];
   } else if (kind === "1d") {
-    return sql<OrderRow[]>`
+    return db.prepare(`
       SELECT * FROM orders
       WHERE status = 'delivered' AND expires_at IS NOT NULL
         AND reminded_1d = 0
-        AND expires_at > ${now} AND expires_at <= ${now + windowMs}
+        AND expires_at > ? AND expires_at <= ?
       ORDER BY expires_at ASC LIMIT 200
-    `;
+    `).all(now, now + windowMs) as OrderRow[];
   } else {
-    return sql<OrderRow[]>`
+    return db.prepare(`
       SELECT * FROM orders
       WHERE status = 'delivered' AND expires_at IS NOT NULL
         AND reminded_1h = 0
-        AND expires_at > ${now} AND expires_at <= ${now + windowMs}
+        AND expires_at > ? AND expires_at <= ?
       ORDER BY expires_at ASC LIMIT 200
-    `;
+    `).all(now, now + windowMs) as OrderRow[];
   }
-  // col is used for documentation only above; silence the TS warning:
-  void col;
 }
 
 export async function markReminderSent(orderId: number, kind: ReminderKind): Promise<void> {
   if (kind === "3d") {
-    await sql`UPDATE orders SET reminded_3d = 1 WHERE id = ${orderId}`;
+    db.prepare(`UPDATE orders SET reminded_3d = 1 WHERE id = ?`).run(orderId);
   } else if (kind === "1d") {
-    await sql`UPDATE orders SET reminded_1d = 1 WHERE id = ${orderId}`;
+    db.prepare(`UPDATE orders SET reminded_1d = 1 WHERE id = ?`).run(orderId);
   } else {
-    await sql`UPDATE orders SET reminded_1h = 1 WHERE id = ${orderId}`;
+    db.prepare(`UPDATE orders SET reminded_1h = 1 WHERE id = ?`).run(orderId);
   }
 }
 
 export async function listOrdersDueForAdminExpired(): Promise<OrderRow[]> {
   const now = Date.now();
-  return sql<OrderRow[]>`
+  return db.prepare(`
     SELECT * FROM orders
     WHERE status = 'delivered' AND expires_at IS NOT NULL
-      AND expires_at <= ${now} AND admin_notified_expired = 0
+      AND expires_at <= ? AND admin_notified_expired = 0
     ORDER BY expires_at ASC LIMIT 200
-  `;
+  `).all(now) as OrderRow[];
 }
 
 export async function markAdminNotifiedExpired(orderId: number): Promise<void> {
-  await sql`UPDATE orders SET admin_notified_expired = 1 WHERE id = ${orderId}`;
+  db.prepare(`UPDATE orders SET admin_notified_expired = 1 WHERE id = ?`).run(orderId);
 }
 
 // ---------------------------------------------------------------------------
-// settings (write is async + updates cache; read is sync from cache)
+// settings
 // ---------------------------------------------------------------------------
 
 export function getSetting(key: string): string | null {
@@ -631,45 +587,104 @@ export function getSetting(key: string): string | null {
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  await sql`
-    INSERT INTO settings (key, value) VALUES (${key}, ${value})
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-  `;
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value
+  `).run(key, value);
   settingsCache.set(key, value);
 }
 
 export function getCryptoWallet(): string {
-  return getSetting("crypto_wallet") || "";
+  return settingsCache.get("crypto_wallet") ?? "";
 }
 
 export function getUpiId(): string {
-  return getSetting("upi_id") || "";
+  return settingsCache.get("upi_id") ?? "";
 }
 
 export function getBinanceId(): string {
-  return getSetting("binance_id") || "";
+  return settingsCache.get("binance_id") ?? "";
 }
 
 export function getCryptoBotToken(): string {
-  return getSetting("cryptobot_token") || "";
+  return settingsCache.get("cryptobot_token") ?? "";
 }
 
 export function getCryptoBotAssets(): string {
-  return getSetting("cryptobot_assets") || "USDT,TON";
+  return settingsCache.get("cryptobot_assets") ?? "USDT,TON,BTC,ETH,BNB,TRX";
 }
 
 export function getTestflightLink(): string {
-  return getSetting("testflight_link") || "";
+  return settingsCache.get("testflight_link") ?? "";
 }
 
-function tfKey(game: GameId, period: PeriodId): string {
-  return `testflight_link:${game}:${period}`;
+// ---------------------------------------------------------------------------
+// bot_admins
+// ---------------------------------------------------------------------------
+
+export function getCachedBotAdmins(): BotAdminRow[] {
+  return botAdminsCache;
+}
+
+export async function addBotAdmin(args: {
+  telegramId?: number | null;
+  username?: string | null;
+  addedByTelegramId?: number | null;
+}): Promise<BotAdminRow> {
+  const now = Date.now();
+  const result = db.prepare(`
+    INSERT INTO bot_admins (telegram_id, username, added_at, added_by_telegram_id)
+    VALUES (?, ?, ?, ?)
+  `).run(args.telegramId ?? null, args.username ?? null, now, args.addedByTelegramId ?? null);
+  const row = db.prepare(`SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE id = ?`).get(result.lastInsertRowid) as BotAdminRow;
+  botAdminsCache = db.prepare(`SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins ORDER BY added_at ASC`).all() as BotAdminRow[];
+  return row;
+}
+
+export async function removeBotAdmin(id: number): Promise<boolean> {
+  const result = db.prepare(`DELETE FROM bot_admins WHERE id = ?`).run(id);
+  if (result.changes > 0) {
+    botAdminsCache = db.prepare(`SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins ORDER BY added_at ASC`).all() as BotAdminRow[];
+    return true;
+  }
+  return false;
+}
+
+export async function getBotAdminByTelegramId(telegramId: number): Promise<BotAdminRow | undefined> {
+  return db.prepare(`SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE telegram_id = ?`).get(telegramId) as BotAdminRow | undefined;
+}
+
+export async function getBotAdminByUsername(username: string): Promise<BotAdminRow | undefined> {
+  return db.prepare(`SELECT id, telegram_id, username, added_at, added_by_telegram_id FROM bot_admins WHERE LOWER(username) = LOWER(?)`).get(username) as BotAdminRow | undefined;
+}
+
+export async function listPendingOrders(): Promise<OrderRow[]> {
+  return db.prepare(`
+    SELECT * FROM orders WHERE status = 'pending' ORDER BY created_at ASC
+  `).all() as OrderRow[];
+}
+
+export async function listDeliveredOrders(limit = 50): Promise<OrderRow[]> {
+  return db.prepare(`
+    SELECT * FROM orders WHERE status = 'delivered' ORDER BY decided_at DESC LIMIT ?
+  `).all(limit) as OrderRow[];
+}
+
+// ---------------------------------------------------------------------------
+// testflight links (per game+period, stored as settings keys)
+// ---------------------------------------------------------------------------
+
+function testflightKey(game: string, period: string): string {
+  return `testflight:${game}:${period}`;
 }
 
 export function getTestflightLinkFor(game: GameId, period: PeriodId): string {
-  const v = getSetting(tfKey(game, period));
-  if (v) return v;
-  return getTestflightLink();
+  return settingsCache.get(testflightKey(game, period)) ?? "";
+}
+
+export function hasTestflightLinkFor(game: GameId, period: PeriodId): boolean {
+  const v = settingsCache.get(testflightKey(game, period));
+  return !!v && v.length > 0;
 }
 
 export async function setTestflightLinkFor(
@@ -677,94 +692,33 @@ export async function setTestflightLinkFor(
   period: PeriodId,
   value: string,
 ): Promise<void> {
-  await setSetting(tfKey(game, period), value);
-}
-
-export function hasTestflightLinkFor(game: GameId, period: PeriodId): boolean {
-  return Boolean(getSetting(tfKey(game, period)));
+  const key = testflightKey(game, period);
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value
+  `).run(key, value);
+  settingsCache.set(key, value);
 }
 
 // ---------------------------------------------------------------------------
-// bot admins (write is async + updates cache; read is sync from cache)
+// bot_admins helpers (sync wrappers and additional functions)
 // ---------------------------------------------------------------------------
 
 export function listBotAdmins(): BotAdminRow[] {
   return botAdminsCache;
 }
 
-export type AddBotAdminResult =
-  | { ok: true; row: BotAdminRow }
-  | { ok: false; reason: "invalid" | "duplicate" };
-
-function normalizeUsername(raw: string): string {
-  let u = raw.trim();
-  if (u.startsWith("https://t.me/")) u = u.slice("https://t.me/".length);
-  if (u.startsWith("t.me/")) u = u.slice("t.me/".length);
-  if (u.startsWith("@")) u = u.slice(1);
-  return u;
-}
-
-export function isValidUsername(raw: string): boolean {
-  const u = normalizeUsername(raw);
-  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(u);
-}
-
-export async function addBotAdminByUsername(
-  rawUsername: string,
-  addedByTelegramId: number | null,
-): Promise<AddBotAdminResult> {
-  if (!isValidUsername(rawUsername)) return { ok: false, reason: "invalid" };
-  const username = normalizeUsername(rawUsername);
-  const dup = botAdminsCache.find(
-    (r) => r.username?.toLowerCase() === username.toLowerCase(),
-  );
-  if (dup) return { ok: false, reason: "duplicate" };
-  const rows = await sql<BotAdminRow[]>`
-    INSERT INTO bot_admins (telegram_id, username, added_at, added_by_telegram_id)
-    VALUES (NULL, ${username}, ${Date.now()}, ${addedByTelegramId})
-    RETURNING id, telegram_id, username, added_at, added_by_telegram_id
-  `;
-  const row = rows[0]!;
-  botAdminsCache = [...botAdminsCache, row];
-  return { ok: true, row };
-}
-
-export async function removeBotAdminById(id: number): Promise<boolean> {
-  const rows = await sql<{ id: number }[]>`
-    DELETE FROM bot_admins WHERE id = ${id} RETURNING id
-  `;
-  if (rows.length > 0) {
-    botAdminsCache = botAdminsCache.filter((r) => r.id !== id);
-    return true;
-  }
-  return false;
-}
-
 export function isBotAdminUser(args: {
   telegramId: number;
   username: string | null;
 }): boolean {
-  // Match by numeric telegram_id first (O(n) but n is tiny).
-  const byId = botAdminsCache.find((r) => r.telegram_id === args.telegramId);
-  if (byId) return true;
-  // Fall back to username match; if found, lazily link the telegram_id.
-  if (args.username) {
-    const uLower = args.username.toLowerCase();
-    const byName = botAdminsCache.find(
-      (r) => r.username?.toLowerCase() === uLower,
-    );
-    if (byName) {
-      if (byName.telegram_id === null) {
-        // Update cache immediately so subsequent sync checks use the id.
-        byName.telegram_id = args.telegramId;
-        // Persist async in the background (fire-and-forget is intentional).
-        sql`
-          UPDATE bot_admins SET telegram_id = ${args.telegramId}
-          WHERE id = ${byName.id} AND (telegram_id IS NULL OR telegram_id = ${args.telegramId})
-        `.catch(() => {
-          /* ignore — another concurrent call might have won the race */
-        });
-      }
+  for (const admin of botAdminsCache) {
+    if (admin.telegram_id !== null && admin.telegram_id === args.telegramId) return true;
+    if (
+      admin.username !== null &&
+      args.username !== null &&
+      admin.username.toLowerCase() === args.username.toLowerCase()
+    ) {
       return true;
     }
   }
@@ -773,6 +727,20 @@ export function isBotAdminUser(args: {
 
 export function getResolvedBotAdminTelegramIds(): number[] {
   return botAdminsCache
-    .map((r) => r.telegram_id)
-    .filter((n): n is number => typeof n === "number" && n > 0);
+    .map((a) => a.telegram_id)
+    .filter((id): id is number => id !== null);
+}
+
+export async function removeBotAdminById(id: number): Promise<boolean> {
+  return removeBotAdmin(id);
+}
+
+export async function addBotAdminByUsername(
+  username: string,
+  addedByTelegramId: number | null,
+): Promise<BotAdminRow> {
+  const clean = username.replace(/^@/, "");
+  const existing = await getBotAdminByUsername(clean);
+  if (existing) return existing;
+  return addBotAdmin({ username: clean, addedByTelegramId });
 }
