@@ -376,7 +376,7 @@ const en: Dict = {
   adminPromoCodesTitle: "🏷  *Promo codes*",
   adminPromoCodesEmpty: "No promo codes yet. Tap «➕  Create» to add one.",
   adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
-    `• \`${code}\`  —  ${discountPct}% off  •  ${usesLeft}/${maxUses} uses left`,
+    `• \`${code}\`  —  ${discountPct}% off  •  used ${maxUses - usesLeft}/${maxUses}`,
   adminPromoCreate: "➕  Create",
   adminPromoCreateName:
     "Send the promo code name (letters, digits, underscores only, e.g. `WINSTAR20`). /cancel to abort.",
@@ -392,7 +392,7 @@ const en: Dict = {
   adminPromoInvalidUses: "Please send a valid positive integer (e.g. `100`).",
   adminPromoInvalidDiscount: "Please send a whole number between 1 and 99.",
   promoBtn: "🏷  Enter promo code",
-  promoEnterPrompt: "Send your promo code (e.g. `WINSTAR20`). /cancel to skip.",
+  promoEnterPrompt: "Send your promo code. /cancel to skip.",
   promoInvalid:
     "❌  Promo code not found or has no uses left. Please check the code and try again.",
   promoAlreadyUsed: "❌  You have already used this promo code.",
@@ -573,7 +573,7 @@ const ru: Dict = {
   adminPromoCodesTitle: "🏷  *Промокоды*",
   adminPromoCodesEmpty: "Промокодов пока нет. Нажмите «➕  Создать», чтобы добавить.",
   adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
-    `• \`${code}\`  —  ${discountPct}% скидка  •  ${usesLeft}/${maxUses} использований`,
+    `• \`${code}\`  —  ${discountPct}% скидка  •  использовано ${maxUses - usesLeft}/${maxUses}`,
   adminPromoCreate: "➕  Создать",
   adminPromoCreateName:
     "Введите название промокода (только буквы, цифры и подчёркивание, например `WINSTAR20`). /cancel — отменить.",
@@ -589,7 +589,7 @@ const ru: Dict = {
   adminPromoInvalidUses: "Введите корректное положительное целое число (например `100`).",
   adminPromoInvalidDiscount: "Введите целое число от 1 до 99.",
   promoBtn: "🏷  Ввести промокод",
-  promoEnterPrompt: "Введите ваш промокод (например `WINSTAR20`). /cancel — пропустить.",
+  promoEnterPrompt: "Введите ваш промокод. /cancel — пропустить.",
   promoInvalid:
     "❌  Промокод не найден или исчерпан. Проверьте код и попробуйте ещё раз.",
   promoAlreadyUsed: "❌  Вы уже использовали этот промокод.",
@@ -770,7 +770,7 @@ const hi: Dict = {
   adminPromoCodesTitle: "🏷  *प्रोमो कोड*",
   adminPromoCodesEmpty: "अभी कोई प्रोमो कोड नहीं है। «➕  बनाएँ» दबाएँ।",
   adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
-    `• \`${code}\`  —  ${discountPct}% छूट  •  ${usesLeft}/${maxUses} बचे`,
+    `• \`${code}\`  —  ${discountPct}% छूट  •  उपयोग ${maxUses - usesLeft}/${maxUses}`,
   adminPromoCreate: "➕  बनाएँ",
   adminPromoCreateName:
     "प्रोमो कोड का नाम भेजें (केवल अक्षर, अंक, अंडरस्कोर, जैसे `WINSTAR20`)। रद्द करने के लिए /cancel।",
@@ -786,7 +786,7 @@ const hi: Dict = {
   adminPromoInvalidUses: "कृपया वैध धनात्मक पूर्णांक भेजें (जैसे `100`)।",
   adminPromoInvalidDiscount: "1 से 99 के बीच पूर्णांक भेजें।",
   promoBtn: "🏷  प्रोमो कोड दर्ज करें",
-  promoEnterPrompt: "अपना प्रोमो कोड भेजें (जैसे `WINSTAR20`)। छोड़ने के लिए /cancel।",
+  promoEnterPrompt: "अपना प्रोमो कोड भेजें। छोड़ने के लिए /cancel।",
   promoInvalid:
     "❌  प्रोमो कोड नहीं मिला या समाप्त हो गया। कोड जाँचें और पुनः प्रयास करें।",
   promoAlreadyUsed: "❌  आप पहले ही इस प्रोमो कोड का उपयोग कर चुके हैं।",

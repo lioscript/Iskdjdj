@@ -152,7 +152,7 @@ export function periodsKb(
       const discounted = Math.round(amount * (1 - promo.discountPct / 100) * 100) / 100;
       const origLabel = currency === "inr" ? fmtInr(amount) : fmtUsd(amount);
       const discLabel = currency === "inr" ? fmtInr(discounted) : fmtUsd(discounted);
-      label = tr.periodWithPrice(p, `~~${origLabel}~~ ${discLabel}`);
+      label = tr.periodWithPrice(p, `${origLabel} → ${discLabel}`);
     } else if (amount !== null) {
       label = tr.periodWithPrice(
         p,
@@ -216,7 +216,8 @@ export function adminPromoCodesKb(lang: Lang, promos: PromoCodeRow[]): InlineKey
   const tr = t(lang);
   const kb = new InlineKeyboard();
   for (const p of promos) {
-    const label = `✕  ${p.code}  (-${p.discount_pct}%)  ${p.uses_left}/${p.max_uses}`;
+    const used = p.max_uses - p.uses_left;
+    const label = `✕  ${p.code}  (-${p.discount_pct}%)  used ${used}/${p.max_uses}`;
     kb.text(label, `adm:promos:del:${p.id}`).row();
   }
   kb.text(tr.adminPromoCreate, "adm:promos:create").row();

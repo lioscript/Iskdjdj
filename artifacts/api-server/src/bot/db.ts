@@ -44,6 +44,16 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+db.pragma("synchronous = NORMAL");
+
+export function closeDb(): void {
+  try {
+    db.pragma("wal_checkpoint(TRUNCATE)");
+    db.close();
+  } catch {
+    // ignore errors during shutdown
+  }
+}
 
 // ---------------------------------------------------------------------------
 // In-memory caches (populated during initDb, kept up-to-date by setters)

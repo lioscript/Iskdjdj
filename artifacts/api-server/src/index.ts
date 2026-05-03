@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startBot } from "./bot";
-import { initDb } from "./bot/db";
+import { initDb, closeDb } from "./bot/db";
 
 const rawPort = process.env["PORT"];
 
@@ -16,6 +16,14 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down — checkpointing database");
+  closeDb();
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 // Initialise DB (create tables, warm caches) then start everything.
 initDb()
