@@ -141,19 +141,36 @@ export function periodsKb(
   lang: Lang,
   game: GameId,
   method: PaymentMethod,
+  promo?: { code: string; discountPct: number },
 ): InlineKeyboard {
   const tr = t(lang);
   const kb = new InlineKeyboard();
   for (const p of PERIODS) {
     const { amount, currency } = getPriceForMethod(game, p, method);
-    const label =
-      amount !== null
-        ? tr.periodWithPrice(
-            p,
-            currency === "inr" ? fmtInr(amount) : fmtUsd(amount),
-          )
-        : tr.periodLabel[p];
-    kb.text(label, `buy:order:${game}:${method}:${p}`).row();
+    let label: string;
+    if (amount !== null && promo) {
+      const discounted = Math.round(amount * (1 - promo.discountPct / 100) * 100) / 100;
+      const origLabel = currency === "inr" ? fmtInr(amount) : fmtUsd(amount);
+      const discLabel = currency === "inr" ? fmtInr(discounted) : fmtUsd(discounted);
+      label = tr.periodWithPrice(p, `~~${origLabel}~~ ${discLabel}`);
+    } else if (amount !== null) {
+      label = tr.periodWithPrice(
+        p,
+        currency === "inr" ? fmtInr(amount) : fmtUsd(amount),
+      );
+    } else {
+      label = tr.periodLabel[p];
+    }
+    const cbData = promo
+      ? `buy:order:${game}:${method}:${p}:${promo.code}`
+      : `buy:order:${game}:${method}:${p}`;
+    kb.text(label, cbData).row();
+  }
+  // Promo code button
+  if (promo) {
+    kb.text(`✅ ${promo.code} (-${promo.discountPct}%)`, `buy:promo:${game}:${method}`).row();
+  } else {
+    kb.text(tr.promoBtn, `buy:promo:${game}:${method}`).row();
   }
   // Back to the payment-method picker.
   kb.text(tr.btnBack, `buy:game:${game}`);
@@ -187,9 +204,24 @@ export function adminPanelKb(lang: Lang): InlineKeyboard {
     .text(tr.adminAddKeys, "adm:addkeys").row()
     .text(tr.adminViewKeys, "adm:viewkeys").row()
     .text(tr.adminSettings, "adm:settings").row()
+    .text(tr.adminBtnPromoCodes, "adm:promos").row()
     .text(tr.adminBtnAddAdmin, "adm:admins:add").row()
     .text(tr.adminBtnListAdmins, "adm:admins").row()
     .text(tr.btnHome, "nav:home");
+}
+
+import type { PromoCodeRow } from "./db";
+
+export function adminPromoCodesKb(lang: Lang, promos: PromoCodeRow[]): InlineKeyboard {
+  const tr = t(lang);
+  const kb = new InlineKeyboard();
+  for (const p of promos) {
+    const label = `✕  ${p.code}  (-${p.discount_pct}%)  ${p.uses_left}/${p.max_uses}`;
+    kb.text(label, `adm:promos:del:${p.id}`).row();
+  }
+  kb.text(tr.adminPromoCreate, "adm:promos:create").row();
+  kb.text(tr.adminBack, "adm:home");
+  return kb;
 }
 
 export function adminGamesKb(

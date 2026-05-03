@@ -160,6 +160,25 @@ type Dict = {
   adminListAdminsPendingBadge: string;
   adminAdminRemoved: string;
   adminCannotRemoveSuper: string;
+  // Promo codes
+  adminBtnPromoCodes: string;
+  adminPromoCodesTitle: string;
+  adminPromoCodesEmpty: string;
+  adminPromoCodeRow: (code: string, discountPct: number, usesLeft: number, maxUses: number) => string;
+  adminPromoCreate: string;
+  adminPromoCreateName: string;
+  adminPromoCreateUses: (code: string) => string;
+  adminPromoCreateDiscount: (code: string, maxUses: number) => string;
+  adminPromoCreated: (code: string, discountPct: number, maxUses: number) => string;
+  adminPromoDeleted: string;
+  adminPromoInvalidName: string;
+  adminPromoInvalidUses: string;
+  adminPromoInvalidDiscount: string;
+  promoBtn: string;
+  promoEnterPrompt: string;
+  promoInvalid: string;
+  promoAlreadyUsed: string;
+  promoApplied: (code: string, discountPct: number) => string;
   // Order admin notification
   adminOrderTitle: string;
   adminOrderBody: (
@@ -353,6 +372,32 @@ const en: Dict = {
   adminListAdminsPendingBadge: "⏳ pending first message",
   adminAdminRemoved: "Administrator removed.",
   adminCannotRemoveSuper: "The super admin cannot be removed.",
+  adminBtnPromoCodes: "🏷  Promo codes",
+  adminPromoCodesTitle: "🏷  *Promo codes*",
+  adminPromoCodesEmpty: "No promo codes yet. Tap «➕  Create» to add one.",
+  adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
+    `• \`${code}\`  —  ${discountPct}% off  •  ${usesLeft}/${maxUses} uses left`,
+  adminPromoCreate: "➕  Create",
+  adminPromoCreateName:
+    "Send the promo code name (letters, digits, underscores only, e.g. `WINSTAR20`). /cancel to abort.",
+  adminPromoCreateUses: (code) =>
+    `Code: \`${code}\`\n\nHow many times can this code be used in total? Send a number (e.g. \`100\`). /cancel to abort.`,
+  adminPromoCreateDiscount: (code, maxUses) =>
+    `Code: \`${code}\`  •  Max uses: ${maxUses}\n\nDiscount percentage? Send a whole number 1–99 (e.g. \`20\` for 20% off). /cancel to abort.`,
+  adminPromoCreated: (code, discountPct, maxUses) =>
+    `✅  Promo code \`${code}\` created!\n\n• Discount: *${discountPct}%*\n• Max uses: *${maxUses}*`,
+  adminPromoDeleted: "Promo code deleted.",
+  adminPromoInvalidName:
+    "Invalid code name. Use only letters, digits and underscores (3–30 chars), e.g. `WINSTAR20`.",
+  adminPromoInvalidUses: "Please send a valid positive integer (e.g. `100`).",
+  adminPromoInvalidDiscount: "Please send a whole number between 1 and 99.",
+  promoBtn: "🏷  Enter promo code",
+  promoEnterPrompt: "Send your promo code (e.g. `WINSTAR20`). /cancel to skip.",
+  promoInvalid:
+    "❌  Promo code not found or has no uses left. Please check the code and try again.",
+  promoAlreadyUsed: "❌  You have already used this promo code.",
+  promoApplied: (code, discountPct) =>
+    `✅  Code *${code}* applied! You get *${discountPct}% off*. Pick your period below:`,
   adminOrderTitle: "🔔  *New payment claim*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  Order *#${orderId}*\n\n👤  User: ${user}\n🎮  Game: ${game}\n⏳  Period: ${period}\n💳  Method: ${method}\n💰  Amount: *${amount}*`,
@@ -524,6 +569,32 @@ const ru: Dict = {
   adminListAdminsPendingBadge: "⏳ ждёт первое сообщение",
   adminAdminRemoved: "Администратор удалён.",
   adminCannotRemoveSuper: "Супер-администратора нельзя удалить.",
+  adminBtnPromoCodes: "🏷  Промокоды",
+  adminPromoCodesTitle: "🏷  *Промокоды*",
+  adminPromoCodesEmpty: "Промокодов пока нет. Нажмите «➕  Создать», чтобы добавить.",
+  adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
+    `• \`${code}\`  —  ${discountPct}% скидка  •  ${usesLeft}/${maxUses} использований`,
+  adminPromoCreate: "➕  Создать",
+  adminPromoCreateName:
+    "Введите название промокода (только буквы, цифры и подчёркивание, например `WINSTAR20`). /cancel — отменить.",
+  adminPromoCreateUses: (code) =>
+    `Код: \`${code}\`\n\nСколько раз можно использовать этот промокод? Введите число (например \`100\`). /cancel — отменить.`,
+  adminPromoCreateDiscount: (code, maxUses) =>
+    `Код: \`${code}\`  •  Макс. использований: ${maxUses}\n\nПроцент скидки? Введите целое число от 1 до 99 (например \`20\` для 20% скидки). /cancel — отменить.`,
+  adminPromoCreated: (code, discountPct, maxUses) =>
+    `✅  Промокод \`${code}\` создан!\n\n• Скидка: *${discountPct}%*\n• Макс. использований: *${maxUses}*`,
+  adminPromoDeleted: "Промокод удалён.",
+  adminPromoInvalidName:
+    "Некорректное название. Используйте только буквы, цифры и подчёркивание (3–30 символов), например `WINSTAR20`.",
+  adminPromoInvalidUses: "Введите корректное положительное целое число (например `100`).",
+  adminPromoInvalidDiscount: "Введите целое число от 1 до 99.",
+  promoBtn: "🏷  Ввести промокод",
+  promoEnterPrompt: "Введите ваш промокод (например `WINSTAR20`). /cancel — пропустить.",
+  promoInvalid:
+    "❌  Промокод не найден или исчерпан. Проверьте код и попробуйте ещё раз.",
+  promoAlreadyUsed: "❌  Вы уже использовали этот промокод.",
+  promoApplied: (code, discountPct) =>
+    `✅  Промокод *${code}* применён! Скидка *${discountPct}%*. Выберите период:`,
   adminOrderTitle: "🔔  *Новая заявка на оплату*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  Заказ *#${orderId}*\n\n👤  Пользователь: ${user}\n🎮  Игра: ${game}\n⏳  Период: ${period}\n💳  Метод: ${method}\n💰  Сумма: *${amount}*`,
@@ -695,6 +766,32 @@ const hi: Dict = {
   adminListAdminsPendingBadge: "⏳ पहले मैसेज का इंतज़ार",
   adminAdminRemoved: "एडमिन हटा दिया गया।",
   adminCannotRemoveSuper: "सुपर एडमिन को हटाया नहीं जा सकता।",
+  adminBtnPromoCodes: "🏷  प्रोमो कोड",
+  adminPromoCodesTitle: "🏷  *प्रोमो कोड*",
+  adminPromoCodesEmpty: "अभी कोई प्रोमो कोड नहीं है। «➕  बनाएँ» दबाएँ।",
+  adminPromoCodeRow: (code, discountPct, usesLeft, maxUses) =>
+    `• \`${code}\`  —  ${discountPct}% छूट  •  ${usesLeft}/${maxUses} बचे`,
+  adminPromoCreate: "➕  बनाएँ",
+  adminPromoCreateName:
+    "प्रोमो कोड का नाम भेजें (केवल अक्षर, अंक, अंडरस्कोर, जैसे `WINSTAR20`)। रद्द करने के लिए /cancel।",
+  adminPromoCreateUses: (code) =>
+    `कोड: \`${code}\`\n\nयह कोड कितनी बार उपयोग हो सकता है? संख्या भेजें (जैसे \`100\`)। /cancel।`,
+  adminPromoCreateDiscount: (code, maxUses) =>
+    `कोड: \`${code}\`  •  अधिकतम उपयोग: ${maxUses}\n\nछूट प्रतिशत? 1–99 के बीच पूर्णांक भेजें (जैसे \`20\`)। /cancel।`,
+  adminPromoCreated: (code, discountPct, maxUses) =>
+    `✅  प्रोमो कोड \`${code}\` बनाया!\n\n• छूट: *${discountPct}%*\n• अधिकतम उपयोग: *${maxUses}*`,
+  adminPromoDeleted: "प्रोमो कोड हटाया गया।",
+  adminPromoInvalidName:
+    "अमान्य नाम। केवल अक्षर, अंक और अंडरस्कोर (3–30 अक्षर), जैसे `WINSTAR20`।",
+  adminPromoInvalidUses: "कृपया वैध धनात्मक पूर्णांक भेजें (जैसे `100`)।",
+  adminPromoInvalidDiscount: "1 से 99 के बीच पूर्णांक भेजें।",
+  promoBtn: "🏷  प्रोमो कोड दर्ज करें",
+  promoEnterPrompt: "अपना प्रोमो कोड भेजें (जैसे `WINSTAR20`)। छोड़ने के लिए /cancel।",
+  promoInvalid:
+    "❌  प्रोमो कोड नहीं मिला या समाप्त हो गया। कोड जाँचें और पुनः प्रयास करें।",
+  promoAlreadyUsed: "❌  आप पहले ही इस प्रोमो कोड का उपयोग कर चुके हैं।",
+  promoApplied: (code, discountPct) =>
+    `✅  कोड *${code}* लागू! *${discountPct}% छूट* मिली। नीचे अवधि चुनें:`,
   adminOrderTitle: "🔔  *नई भुगतान दावा*",
   adminOrderBody: (orderId, user, game, period, method, amount) =>
     `🧾  ऑर्डर *#${orderId}*\n\n👤  यूज़र: ${user}\n🎮  गेम: ${game}\n⏳  अवधि: ${period}\n💳  तरीका: ${method}\n💰  राशि: *${amount}*`,

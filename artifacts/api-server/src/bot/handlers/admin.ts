@@ -4,7 +4,9 @@ import {
   addKeys,
   countAvailableKeys,
   countUsers,
+  createPromoCode,
   deleteKey,
+  deletePromoCode,
   getBinanceId,
   getCryptoBotAssets,
   getCryptoBotToken,
@@ -21,6 +23,7 @@ import {
   getUser,
   isBotAdminUser,
   listBotAdmins,
+  listPromoCodes,
   rejectOrder,
   removeBotAdminById,
   reserveKeyForOrder,
@@ -37,6 +40,7 @@ import {
   adminPanelKb,
   adminPeriodsKb,
   adminPriceCurrencyKb,
+  adminPromoCodesKb,
   adminSettingsKb,
   adminViewKeysKb,
   fmtInr,
@@ -316,6 +320,52 @@ export function registerAdminHandlers(bot: Bot): void {
   });
 
   // ----- Admin management (add / list / remove) -----
+  // ----- Promo codes -----
+  bot.callbackQuery(/^adm:promos$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    await ctx.answerCallbackQuery();
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    const promos = listPromoCodes();
+    const lines = [tr.adminPromoCodesTitle, ""];
+    if (promos.length === 0) {
+      lines.push(tr.adminPromoCodesEmpty);
+    } else {
+      for (const p of promos) {
+        lines.push(tr.adminPromoCodeRow(p.code, p.discount_pct, p.uses_left, p.max_uses));
+      }
+    }
+    await showMenuText(ctx, lines.join("\n"), adminPromoCodesKb(lang, promos));
+  });
+
+  bot.callbackQuery(/^adm:promos:create$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    setState(ctx.chat!.id, { kind: "await_promo_name" });
+    await ctx.answerCallbackQuery();
+    await showMenuText(ctx, tr.adminPromoCreateName, adminPanelKb(lang));
+  });
+
+  bot.callbackQuery(/^adm:promos:del:(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
+    const id = Number(ctx.match![1]);
+    const lang = getLang(ctx);
+    const tr = t(lang);
+    deletePromoCode(id);
+    await ctx.answerCallbackQuery({ text: tr.adminPromoDeleted });
+    const promos = listPromoCodes();
+    const lines = [tr.adminPromoCodesTitle, ""];
+    if (promos.length === 0) {
+      lines.push(tr.adminPromoCodesEmpty);
+    } else {
+      for (const p of promos) {
+        lines.push(tr.adminPromoCodeRow(p.code, p.discount_pct, p.uses_left, p.max_uses));
+      }
+    }
+    await showMenuText(ctx, lines.join("\n"), adminPromoCodesKb(lang, promos));
+  });
+
   bot.callbackQuery(/^adm:admins$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
     await ctx.answerCallbackQuery();
@@ -722,6 +772,44 @@ export function registerAdminHandlers(bot: Bot): void {
       await showMenuText(
         ctx,
         tr.adminAddAdminOk(result.row.username ?? ""),
+        adminPanelKb(lang),
+      );
+      return;
+    }
+
+    if (state.kind === "await_promo_name") {
+      const code = text.trim().toUpperCase();
+      if (!code || !/^[A-Z0-9_]{3,30}$/.test(code)) {
+        await showMenuText(ctx, tr.adminPromoInvalidName, adminPanelKb(lang));
+        return;
+      }
+      setState(ctx.chat.id, { kind: "await_promo_uses", code });
+      await showMenuText(ctx, tr.adminPromoCreateUses(code), adminPanelKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_promo_uses") {
+      const n = parseInt(text.trim(), 10);
+      if (!Number.isInteger(n) || n <= 0) {
+        await showMenuText(ctx, tr.adminPromoInvalidUses, adminPanelKb(lang));
+        return;
+      }
+      setState(ctx.chat.id, { kind: "await_promo_discount", code: state.code, maxUses: n });
+      await showMenuText(ctx, tr.adminPromoCreateDiscount(state.code, n), adminPanelKb(lang));
+      return;
+    }
+
+    if (state.kind === "await_promo_discount") {
+      const n = parseInt(text.trim(), 10);
+      if (!Number.isInteger(n) || n < 1 || n > 99) {
+        await showMenuText(ctx, tr.adminPromoInvalidDiscount, adminPanelKb(lang));
+        return;
+      }
+      createPromoCode(state.code, n, state.maxUses);
+      clearState(ctx.chat.id);
+      await showMenuText(
+        ctx,
+        tr.adminPromoCreated(state.code, n, state.maxUses),
         adminPanelKb(lang),
       );
       return;

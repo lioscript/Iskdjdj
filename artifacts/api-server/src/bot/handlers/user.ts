@@ -7,12 +7,15 @@ import {
   getCryptoWallet,
   getOrder,
   getPriceForMethod,
+  getPromoByCode,
   getUpiId,
   getUser,
+  hasUserUsedPromo,
   reserveKeyForOrder,
   setOrderCryptobotInvoice,
   setUserLanguage,
   upsertUser,
+  usePromoCode,
 } from "../db";
 import { notifyableAdminIds } from "./admin";
 import {
@@ -45,7 +48,7 @@ import {
 } from "../cryptobot";
 import { deliverPaidOrder } from "../delivery";
 import { showMenuPhoto, showMenuText } from "../ui";
-import { clearState } from "../state";
+import { clearState, clearUserPromoState, getUserPromoState, setUserPromoState } from "../state";
 import { logger } from "../../lib/logger";
 
 function detectInitialLang(ctx: Context): Lang {
@@ -143,13 +146,14 @@ async function startPayment(
   game: GameId,
   period: PeriodId,
   method: PaymentMethod,
+  promoCode?: string,
 ): Promise<void> {
   const from = ctx.from;
   if (!from) return;
   const { lang } = await getOrCreateUser(ctx);
   const tr = t(lang);
-  const { amount, currency } = getPriceForMethod(game, period, method);
-  if (amount === null) {
+  const { amount: rawAmount, currency } = getPriceForMethod(game, period, method);
+  if (rawAmount === null) {
     await showMenuText(ctx, tr.noPriceYet, mainMenuKb(lang));
     return;
   }
@@ -170,6 +174,18 @@ async function startPayment(
     return;
   }
 
+  // Apply promo code discount if provided.
+  let amount = rawAmount;
+  let promoRow: Awaited<ReturnType<typeof getPromoByCode>> | undefined;
+  if (promoCode) {
+    promoRow = getPromoByCode(promoCode);
+    if (promoRow && promoRow.uses_left > 0 && !hasUserUsedPromo(promoRow.id, from.id)) {
+      amount = Math.round(rawAmount * (1 - promoRow.discount_pct / 100) * 100) / 100;
+    } else {
+      promoRow = undefined;
+    }
+  }
+
   const orderId = await createOrder({
     userTelegramId: from.id,
     game,
@@ -178,6 +194,14 @@ async function startPayment(
     amountUsd: currency === "usd" ? amount : 0,
     amountInr: currency === "inr" ? amount : null,
   });
+
+  // Mark promo code as used after order creation.
+  if (promoRow) {
+    usePromoCode(promoRow.id, from.id);
+  }
+
+  // Clear user promo state after placing the order.
+  clearUserPromoState(from.id);
 
   const priceLabel = currency === "inr" ? fmtInr(amount) : fmtUsd(amount);
 
@@ -433,11 +457,12 @@ export function registerUserHandlers(bot: Bot): void {
     await showPeriodsForMethod(ctx, g, m);
   });
 
-  // After picking a period → start the actual payment flow.
-  bot.callbackQuery(/^buy:order:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
+  // After picking a period → start the actual payment flow (optional promo code appended).
+  bot.callbackQuery(/^buy:order:([^:]+):([^:]+):([^:]+)(?::([A-Z0-9_]+))?$/, async (ctx) => {
     const g = ctx.match![1]!;
     const m = ctx.match![2]!;
     const p = ctx.match![3]!;
+    const promo = ctx.match![4] ?? undefined;
     if (
       !isGameId(g) ||
       !isPeriodId(p) ||
@@ -447,7 +472,62 @@ export function registerUserHandlers(bot: Bot): void {
       return;
     }
     await ctx.answerCallbackQuery();
-    await startPayment(ctx, g, p, m);
+    await startPayment(ctx, g, p, m, promo);
+  });
+
+  // User taps "Enter promo code" on the periods screen.
+  bot.callbackQuery(/^buy:promo:([^:]+):([^:]+)$/, async (ctx) => {
+    const g = ctx.match![1]!;
+    const m = ctx.match![2]!;
+    if (
+      !isGameId(g) ||
+      (m !== "crypto" && m !== "cryptobot" && m !== "upi" && m !== "binance")
+    ) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    setUserPromoState(ctx.chat.id, { kind: "await_promo", game: g, method: m as PaymentMethod });
+    await showMenuText(ctx, tr.promoEnterPrompt, periodsKb(lang, g, m as PaymentMethod));
+  });
+
+  // Text input handler for user promo code entry.
+  bot.on("message:text", async (ctx, next) => {
+    const chatId = ctx.chat.id;
+    const promoState = getUserPromoState(chatId);
+    if (!promoState) {
+      await next();
+      return;
+    }
+    const text = ctx.message.text;
+    if (text.startsWith("/")) {
+      clearUserPromoState(chatId);
+      await next();
+      return;
+    }
+    const from = ctx.from;
+    if (!from) { await next(); return; }
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    const { game, method } = promoState;
+    const code = text.trim().toUpperCase();
+    const promo = getPromoByCode(code);
+    if (!promo || promo.uses_left <= 0) {
+      await showMenuText(ctx, tr.promoInvalid, periodsKb(lang, game, method));
+      return;
+    }
+    if (hasUserUsedPromo(promo.id, from.id)) {
+      await showMenuText(ctx, tr.promoAlreadyUsed, periodsKb(lang, game, method));
+      return;
+    }
+    clearUserPromoState(chatId);
+    await showMenuText(
+      ctx,
+      tr.promoApplied(promo.code, promo.discount_pct),
+      periodsKb(lang, game, method, { code: promo.code, discountPct: promo.discount_pct }),
+    );
   });
 
   bot.callbackQuery(/^pay:confirm:(\d+)$/, async (ctx) => {

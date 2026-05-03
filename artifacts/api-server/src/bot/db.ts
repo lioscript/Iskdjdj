@@ -138,6 +138,22 @@ export async function initDb(): Promise<void> {
       added_by_telegram_id INTEGER
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_admins_username ON bot_admins(LOWER(username)) WHERE username IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS promocodes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      code         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      discount_pct INTEGER NOT NULL,
+      max_uses     INTEGER NOT NULL,
+      uses_left    INTEGER NOT NULL,
+      created_at   INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS promocode_uses (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      promo_id         INTEGER NOT NULL,
+      user_telegram_id INTEGER NOT NULL,
+      used_at          INTEGER NOT NULL,
+      UNIQUE(promo_id, user_telegram_id)
+    );
   `);
 
   const DEFAULT_PRICES: Array<{ game: GameId; period: PeriodId; amount_usd: number }> = [
@@ -738,9 +754,78 @@ export async function removeBotAdminById(id: number): Promise<boolean> {
 export async function addBotAdminByUsername(
   username: string,
   addedByTelegramId: number | null,
-): Promise<BotAdminRow> {
-  const clean = username.replace(/^@/, "");
+): Promise<{ ok: true; row: BotAdminRow } | { ok: false; reason: "duplicate" | "invalid" }> {
+  const clean = username.replace(/^@/, "").trim();
+  if (!clean || !/^[a-zA-Z0-9_]{3,32}$/.test(clean)) {
+    return { ok: false, reason: "invalid" };
+  }
   const existing = await getBotAdminByUsername(clean);
-  if (existing) return existing;
-  return addBotAdmin({ username: clean, addedByTelegramId });
+  if (existing) return { ok: false, reason: "duplicate" };
+  const row = await addBotAdmin({ username: clean, addedByTelegramId });
+  return { ok: true, row };
+}
+
+// ---------------------------------------------------------------------------
+// Promo codes
+// ---------------------------------------------------------------------------
+
+export type PromoCodeRow = {
+  id: number;
+  code: string;
+  discount_pct: number;
+  max_uses: number;
+  uses_left: number;
+  created_at: number;
+};
+
+export function listPromoCodes(): PromoCodeRow[] {
+  return db.prepare(
+    `SELECT id, code, discount_pct, max_uses, uses_left, created_at FROM promocodes ORDER BY created_at DESC`,
+  ).all() as PromoCodeRow[];
+}
+
+export function getPromoByCode(code: string): PromoCodeRow | undefined {
+  return db.prepare(
+    `SELECT id, code, discount_pct, max_uses, uses_left, created_at FROM promocodes WHERE LOWER(code) = LOWER(?)`,
+  ).get(code) as PromoCodeRow | undefined;
+}
+
+export function createPromoCode(
+  code: string,
+  discountPct: number,
+  maxUses: number,
+): PromoCodeRow {
+  const now = Date.now();
+  const result = db.prepare(
+    `INSERT INTO promocodes (code, discount_pct, max_uses, uses_left, created_at) VALUES (?, ?, ?, ?, ?)`,
+  ).run(code.toUpperCase().trim(), discountPct, maxUses, maxUses, now);
+  return db.prepare(
+    `SELECT id, code, discount_pct, max_uses, uses_left, created_at FROM promocodes WHERE id = ?`,
+  ).get(result.lastInsertRowid) as PromoCodeRow;
+}
+
+export function deletePromoCode(id: number): boolean {
+  const r = db.prepare(`DELETE FROM promocodes WHERE id = ?`).run(id);
+  return r.changes > 0;
+}
+
+export function hasUserUsedPromo(promoId: number, userTelegramId: number): boolean {
+  const row = db.prepare(
+    `SELECT id FROM promocode_uses WHERE promo_id = ? AND user_telegram_id = ?`,
+  ).get(promoId, userTelegramId);
+  return !!row;
+}
+
+export function usePromoCode(promoId: number, userTelegramId: number): boolean {
+  try {
+    db.prepare(
+      `INSERT INTO promocode_uses (promo_id, user_telegram_id, used_at) VALUES (?, ?, ?)`,
+    ).run(promoId, userTelegramId, Date.now());
+    db.prepare(
+      `UPDATE promocodes SET uses_left = uses_left - 1 WHERE id = ? AND uses_left > 0`,
+    ).run(promoId);
+    return true;
+  } catch {
+    return false;
+  }
 }

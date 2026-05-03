@@ -14,8 +14,8 @@ the same Node.js process that runs the small Express API.
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Bot framework**: grammy (Telegram, long-polling)
-- **Bot database**: Replit PostgreSQL via postgres.js (persists across
-  redeployments; tables auto-created by `initDb()` at startup)
+- **Bot database**: SQLite via better-sqlite3 at `artifacts/api-server/data/bot.db`
+  (tables auto-created by `initDb()` at startup)
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
@@ -51,9 +51,21 @@ the same Node.js process that runs the small Express API.
     inventory, hard-deleted from stock, and delivered to the user.
 - Admin panel via `/adm`: statistics, prices, add keys (bulk, one per
   line), view/delete keys, set crypto wallet / UPI ID / Binance ID /
-  Crypto Pay token / accepted assets list, and runtime admin
-  management (add an admin by `@username`, view all admins, remove
-  any non-super admin).
+  Crypto Pay token / accepted assets list, runtime admin management
+  (add by `@username`, view all, remove any non-super admin), and
+  **promo code management** (create/list/delete promo codes).
+- **Promo code system**:
+  - Stored in `promocodes` table: code (COLLATE NOCASE unique), discount
+    percent (1–99), max uses, uses left, created_at.
+  - Per-user usage tracked in `promocode_uses` (unique per promo+user).
+  - Admin creates via `/adm` → 🏷 Promo codes → ➕ Create (3-step
+    flow: name → max uses → discount %). Can delete existing codes.
+  - User flow: period selection screen shows "🏷 Enter promo code"
+    button. User types a code → bot validates (exists, uses left, not
+    already used by this user) → re-shows periods with discounted
+    prices crossed out. Picking a period embeds the promo code in the
+    callback; `startPayment` applies the discount and marks the code
+    used atomically with order creation.
 - Who counts as an admin (any of the following gets full /adm access
   and order-approval rights, and is notified of new payment claims):
   - **Owner** — hard-coded ID `5929338019`. Hidden from the admins
