@@ -150,9 +150,8 @@ export function periodsKb(
     let label: string;
     if (amount !== null && promo) {
       const discounted = Math.round(amount * (1 - promo.discountPct / 100) * 100) / 100;
-      const origLabel = currency === "inr" ? fmtInr(amount) : fmtUsd(amount);
       const discLabel = currency === "inr" ? fmtInr(discounted) : fmtUsd(discounted);
-      label = tr.periodWithPrice(p, `${origLabel} → ${discLabel}`);
+      label = tr.periodWithPrice(p, discLabel);
     } else if (amount !== null) {
       label = tr.periodWithPrice(
         p,
