@@ -38,7 +38,10 @@ export const POSTER_PATH = path.join(ARTIFACT_ROOT, "assets", "poster.jpeg");
 // SQLite connection
 // ---------------------------------------------------------------------------
 
-const DB_PATH = process.env["DATABASE_PATH"] ?? path.join(ARTIFACT_ROOT, "data", "bot.db");
+const DB_PATH =
+  process.env["DATABASE_PATH"] ??
+  process.env["DATABASE_URL"] ??
+  path.join(ARTIFACT_ROOT, "data", "bot.db");
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 const db = new Database(DB_PATH);
