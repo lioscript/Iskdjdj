@@ -26,7 +26,7 @@ export async function sendPostDeliveryInfo(
 ): Promise<void> {
   const tr = t(lang);
   const text = tr.postDelivery(
-    getTestflightLinkFor(game, period),
+    getTestflightLinkFor(game),
     UPDATES_GROUP_LINK,
     TUTORIAL_CHANNEL_LINK,
   );

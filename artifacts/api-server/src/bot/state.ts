@@ -8,7 +8,7 @@ export type AdminState =
   | { kind: "await_binance" }
   | { kind: "await_cbtoken" }
   | { kind: "await_cbassets" }
-  | { kind: "await_testflight"; game: GameId; period: PeriodId }
+  | { kind: "await_testflight"; game: GameId }
   | { kind: "await_admin_username" }
   | { kind: "await_promo_name" }
   | { kind: "await_promo_uses"; code: string }
@@ -20,8 +20,13 @@ export type UserPromoState = {
   method: PaymentMethod;
 };
 
+export type UserReviewState =
+  | { kind: "await_review_text"; stars: number }
+  | { kind: "await_review_photo"; stars: number; text: string };
+
 const adminStates = new Map<number, AdminState>();
 const userPromoStates = new Map<number, UserPromoState>();
+const userReviewStates = new Map<number, UserReviewState>();
 
 export function setState(chatId: number, state: AdminState): void {
   adminStates.set(chatId, state);
@@ -34,6 +39,7 @@ export function getState(chatId: number): AdminState | undefined {
 export function clearState(chatId: number): void {
   adminStates.delete(chatId);
   userPromoStates.delete(chatId);
+  userReviewStates.delete(chatId);
 }
 
 export function setUserPromoState(chatId: number, state: UserPromoState): void {
@@ -46,4 +52,16 @@ export function getUserPromoState(chatId: number): UserPromoState | undefined {
 
 export function clearUserPromoState(chatId: number): void {
   userPromoStates.delete(chatId);
+}
+
+export function setUserReviewState(chatId: number, state: UserReviewState): void {
+  userReviewStates.set(chatId, state);
+}
+
+export function getUserReviewState(chatId: number): UserReviewState | undefined {
+  return userReviewStates.get(chatId);
+}
+
+export function clearUserReviewState(chatId: number): void {
+  userReviewStates.delete(chatId);
 }

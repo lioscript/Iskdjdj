@@ -703,25 +703,24 @@ export async function listDeliveredOrders(limit = 50): Promise<OrderRow[]> {
 // testflight links (per game+period, stored as settings keys)
 // ---------------------------------------------------------------------------
 
-function testflightKey(game: string, period: string): string {
-  return `testflight:${game}:${period}`;
+function testflightKey(game: string): string {
+  return `testflight:${game}`;
 }
 
-export function getTestflightLinkFor(game: GameId, period: PeriodId): string {
-  return settingsCache.get(testflightKey(game, period)) ?? "";
+export function getTestflightLinkFor(game: GameId): string {
+  return settingsCache.get(testflightKey(game)) ?? "";
 }
 
-export function hasTestflightLinkFor(game: GameId, period: PeriodId): boolean {
-  const v = settingsCache.get(testflightKey(game, period));
+export function hasTestflightLinkFor(game: GameId): boolean {
+  const v = settingsCache.get(testflightKey(game));
   return !!v && v.length > 0;
 }
 
 export async function setTestflightLinkFor(
   game: GameId,
-  period: PeriodId,
   value: string,
 ): Promise<void> {
-  const key = testflightKey(game, period);
+  const key = testflightKey(game);
   db.prepare(`
     INSERT INTO settings (key, value) VALUES (?, ?)
     ON CONFLICT (key) DO UPDATE SET value = excluded.value

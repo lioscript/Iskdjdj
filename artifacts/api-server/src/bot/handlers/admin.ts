@@ -435,40 +435,20 @@ export function registerAdminHandlers(bot: Bot): void {
     }
   });
 
-  // Step 2: admin picked a game for the TestFlight link → ask for period.
+  // Step 2: admin picked a game for the TestFlight link → prompt for the URL directly.
   bot.callbackQuery(/^adm:tf:game:(.+)$/, async (ctx) => {
     if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
     const g = ctx.match![1]!;
     if (!isGameId(g)) { await ctx.answerCallbackQuery(); return; }
     const lang = getLang(ctx);
     const tr = t(lang);
+    setState(ctx.chat!.id, { kind: "await_testflight", game: g });
     await ctx.answerCallbackQuery();
+    const current = getTestflightLinkFor(g);
     await showMenuText(
       ctx,
-      tr.adminPickPeriodForTestflight(tr.game[g]),
-      adminPeriodsKb(lang, "tf", g),
-    );
-  });
-
-  // Step 3: admin picked a period → prompt for the new TestFlight link.
-  bot.callbackQuery(/^adm:tf:period:([^:]+):([^:]+)$/, async (ctx) => {
-    if (!isAdmin(ctx)) { await ctx.answerCallbackQuery(); return; }
-    const g = ctx.match![1]!;
-    const p = ctx.match![2]!;
-    if (!isGameId(g) || !isPeriodId(p)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const lang = getLang(ctx);
-    const tr = t(lang);
-    setState(ctx.chat!.id, { kind: "await_testflight", game: g, period: p });
-    await ctx.answerCallbackQuery();
-    const current = getTestflightLinkFor(g, p);
-    await showMenuText(
-      ctx,
-      tr.adminEnterTestflightFor(
+      tr.adminEnterTestflightForGame(
         tr.game[g],
-        tr.periodLabel[p],
         current ? `\`${current}\`` : "—",
       ),
       adminSettingsKb(lang),
@@ -752,7 +732,7 @@ export function registerAdminHandlers(bot: Bot): void {
     if (state.kind === "await_testflight") {
       const trimmed = text.trim();
       const value = trimmed.toLowerCase() === "clear" ? "" : trimmed;
-      await setTestflightLinkFor(state.game, state.period, value);
+      await setTestflightLinkFor(state.game, value);
       clearState(ctx.chat.id);
       await showMenuText(ctx, tr.adminTestflightUpdated, adminSettingsKb(lang));
       return;

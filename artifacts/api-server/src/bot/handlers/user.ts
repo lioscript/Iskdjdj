@@ -40,6 +40,8 @@ import {
   paymentsKbForGame,
   periodsKb,
   pubgVariantsKb,
+  reviewSkipPhotoKb,
+  reviewStarsKb,
 } from "../keyboards";
 import {
   createInvoice as cbCreateInvoice,
@@ -48,7 +50,15 @@ import {
 } from "../cryptobot";
 import { deliverPaidOrder } from "../delivery";
 import { showMenuPhoto, showMenuText } from "../ui";
-import { clearState, clearUserPromoState, getUserPromoState, setUserPromoState } from "../state";
+import {
+  clearState,
+  clearUserPromoState,
+  clearUserReviewState,
+  getUserPromoState,
+  getUserReviewState,
+  setUserPromoState,
+  setUserReviewState,
+} from "../state";
 import { logger } from "../../lib/logger";
 
 function detectInitialLang(ctx: Context): Lang {
@@ -493,9 +503,26 @@ export function registerUserHandlers(bot: Bot): void {
     await showMenuText(ctx, tr.promoEnterPrompt, periodsKb(lang, g, m as PaymentMethod));
   });
 
-  // Text input handler for user promo code entry.
+  // Text input handler for user review and promo code entry.
   bot.on("message:text", async (ctx, next) => {
     const chatId = ctx.chat.id;
+
+    // Review text entry
+    const reviewState = getUserReviewState(chatId);
+    if (reviewState && reviewState.kind === "await_review_text") {
+      const text = ctx.message.text;
+      if (text.startsWith("/")) {
+        clearUserReviewState(chatId);
+        await next();
+        return;
+      }
+      setUserReviewState(chatId, { kind: "await_review_photo", stars: reviewState.stars, text });
+      const { lang } = await getOrCreateUser(ctx);
+      const tr = t(lang);
+      await showMenuText(ctx, tr.reviewAskPhoto, reviewSkipPhotoKb(lang));
+      return;
+    }
+
     const promoState = getUserPromoState(chatId);
     if (!promoState) {
       await next();
@@ -540,6 +567,78 @@ export function registerUserHandlers(bot: Bot): void {
     const orderId = Number(ctx.match![1]);
     await checkCryptoBotPayment(ctx, orderId, bot);
   });
+
+  // ── Review flow ──────────────────────────────────────────────────────────
+
+  bot.callbackQuery(/^review:start$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    await showMenuText(ctx, tr.reviewPickStars, reviewStarsKb(lang));
+  });
+
+  bot.callbackQuery(/^review:stars:(\d)$/, async (ctx) => {
+    const stars = Number(ctx.match![1]);
+    await ctx.answerCallbackQuery();
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    setUserReviewState(ctx.chat!.id, { kind: "await_review_text", stars });
+    await showMenuText(ctx, tr.reviewEnterText, mainMenuKb(lang));
+  });
+
+  bot.callbackQuery(/^review:skip_photo$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const reviewState = getUserReviewState(ctx.chat!.id);
+    if (!reviewState || reviewState.kind !== "await_review_photo") return;
+    const { stars, text } = reviewState;
+    clearUserReviewState(ctx.chat!.id);
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    await sendReviewToAdmins(bot, ctx.from!.id, stars, text, null);
+    await showMenuText(ctx, tr.reviewSubmitted, mainMenuKb(lang));
+  });
+
+  bot.on("message:photo", async (ctx, next) => {
+    const reviewState = getUserReviewState(ctx.chat.id);
+    if (!reviewState || reviewState.kind !== "await_review_photo") {
+      await next();
+      return;
+    }
+    const { stars, text } = reviewState;
+    clearUserReviewState(ctx.chat.id);
+    const { lang } = await getOrCreateUser(ctx);
+    const tr = t(lang);
+    const photos = ctx.message.photo;
+    const fileId = photos[photos.length - 1]?.file_id ?? null;
+    await sendReviewToAdmins(bot, ctx.from!.id, stars, text, fileId);
+    await showMenuText(ctx, tr.reviewSubmitted, mainMenuKb(lang));
+  });
+}
+
+async function sendReviewToAdmins(
+  bot: Bot,
+  userId: number,
+  stars: number,
+  text: string,
+  photoFileId: string | null,
+): Promise<void> {
+  const user = await getUser(userId);
+  const userLabel = user?.username
+    ? `@${user.username} (${userId})`
+    : `${user?.first_name ?? ""} (${userId})`.trim();
+  const starsStr = stars === 0 ? "0 ⭐" : "⭐".repeat(stars);
+  const caption = `${starsStr}\n\n👤 ${userLabel}\n\n"${text}"`;
+  for (const adminId of notifyableAdminIds()) {
+    try {
+      if (photoFileId) {
+        await bot.api.sendPhoto(adminId, photoFileId, { caption });
+      } else {
+        await bot.api.sendMessage(adminId, caption);
+      }
+    } catch (err) {
+      logger.warn({ err, adminId }, "Failed to send review to admin");
+    }
+  }
 }
 
 // Helpers exported for admin handler reuse

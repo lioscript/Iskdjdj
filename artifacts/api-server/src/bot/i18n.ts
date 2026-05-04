@@ -23,9 +23,15 @@ type Dict = {
   pickLanguage: string;
   mainMenuTitle: (name: string) => string;
   btnBuy: string;
+  btnReview: string;
   btnLanguage: string;
   btnFeedbacks: string;
   btnSupport: string;
+  reviewPickStars: string;
+  reviewEnterText: string;
+  reviewAskPhoto: string;
+  reviewSkipPhoto: string;
+  reviewSubmitted: string;
   btnBack: string;
   btnHome: string;
   pickGame: string;
@@ -128,6 +134,7 @@ type Dict = {
     period: string,
     current: string,
   ) => string;
+  adminEnterTestflightForGame: (game: string, current: string) => string;
   adminCryptoUpdated: string;
   adminUpiUpdated: string;
   adminBinanceUpdated: string;
@@ -223,9 +230,15 @@ const en: Dict = {
     `🔥  PUBG  •  CODM  •  Mobile Legends  •  8 Ball Pool\n\n` +
     `👇  Pick an option below to get started.`,
   btnBuy: "🎮  Buy keys",
+  btnReview: "⭐  Write a review",
   btnLanguage: "🌐  Change language",
   btnFeedbacks: "✅  Feedbacks",
   btnSupport: "🛟  Support",
+  reviewPickStars: "⭐  *Write a review*\n\nHow would you rate us? Pick a number of stars:",
+  reviewEnterText: "✏️  Now write your review text and send it:",
+  reviewAskPhoto: "📸  Want to attach a photo? Send it now, or tap *Skip*.",
+  reviewSkipPhoto: "⏭  Skip photo",
+  reviewSubmitted: "✅  Thank you for your review! It has been sent to our team.",
   btnBack: "⬅  Back",
   btnHome: "🏠  Main menu",
   pickGame: "🎮  Choose a game",
@@ -340,6 +353,8 @@ const en: Dict = {
   adminPickPeriodForTestflight: (game) => `${game}\n\nPick a version (period)`,
   adminEnterTestflightFor: (game, period, current) =>
     `${game}  •  ${period}\n\nCurrent TestFlight link: ${current}\n\nSend the new TestFlight invite link (e.g. \`https://testflight.apple.com/join/XXXXXX\`). Send \`clear\` to remove it. Send /cancel to abort.`,
+  adminEnterTestflightForGame: (game, current) =>
+    `${game}\n\nCurrent TestFlight link: ${current}\n\nSend the new TestFlight invite link (e.g. \`https://testflight.apple.com/join/XXXXXX\`). Send \`clear\` to remove it. Send /cancel to abort.`,
   adminCryptoUpdated: "Crypto wallet updated.",
   adminUpiUpdated: "UPI ID updated.",
   adminBinanceUpdated: "Binance ID updated.",
@@ -419,9 +434,15 @@ const ru: Dict = {
     `🔥  PUBG  •  CODM  •  Mobile Legends  •  8 Ball Pool\n\n` +
     `👇  Выберите опцию ниже, чтобы начать.`,
   btnBuy: "🎮  Купить ключи",
+  btnReview: "⭐  Написать отзыв",
   btnLanguage: "🌐  Сменить язык",
   btnFeedbacks: "✅  Отзывы",
   btnSupport: "🛟  Поддержка",
+  reviewPickStars: "⭐  *Написать отзыв*\n\nКак вы нас оцениваете? Выберите количество звёзд:",
+  reviewEnterText: "✏️  Теперь напишите текст отзыва и отправьте его:",
+  reviewAskPhoto: "📸  Хотите прикрепить фото? Отправьте его сейчас или нажмите *Пропустить*.",
+  reviewSkipPhoto: "⏭  Пропустить фото",
+  reviewSubmitted: "✅  Спасибо за ваш отзыв! Он отправлен нашей команде.",
   btnBack: "⬅  Назад",
   btnHome: "🏠  Главное меню",
   pickGame: "🎮  Выберите игру",
@@ -537,6 +558,8 @@ const ru: Dict = {
   adminPickPeriodForTestflight: (game) => `${game}\n\nВыберите тариф (версию)`,
   adminEnterTestflightFor: (game, period, current) =>
     `${game}  •  ${period}\n\nТекущая ссылка TestFlight: ${current}\n\nОтправьте новую ссылку TestFlight (например \`https://testflight.apple.com/join/XXXXXX\`). Отправьте \`clear\`, чтобы удалить. /cancel — отменить.`,
+  adminEnterTestflightForGame: (game, current) =>
+    `${game}\n\nТекущая ссылка TestFlight: ${current}\n\nОтправьте новую ссылку TestFlight (например \`https://testflight.apple.com/join/XXXXXX\`). Отправьте \`clear\`, чтобы удалить. /cancel — отменить.`,
   adminCryptoUpdated: "Крипто-кошелёк обновлён.",
   adminUpiUpdated: "UPI ID обновлён.",
   adminBinanceUpdated: "Binance ID обновлён.",
@@ -616,9 +639,15 @@ const hi: Dict = {
     `🔥  PUBG  •  CODM  •  Mobile Legends  •  8 Ball Pool\n\n` +
     `👇  शुरू करने के लिए नीचे एक विकल्प चुनें।`,
   btnBuy: "🎮  कीज़ खरीदें",
+  btnReview: "⭐  समीक्षा लिखें",
   btnLanguage: "🌐  भाषा बदलें",
   btnFeedbacks: "✅  फ़ीडबैक",
   btnSupport: "🛟  सहायता",
+  reviewPickStars: "⭐  *समीक्षा लिखें*\n\nआप हमें कितने स्टार देंगे?",
+  reviewEnterText: "✏️  अब अपनी समीक्षा लिखें और भेजें:",
+  reviewAskPhoto: "📸  क्या आप फ़ोटो जोड़ना चाहते हैं? अभी भेजें या *छोड़ें* दबाएँ।",
+  reviewSkipPhoto: "⏭  फ़ोटो छोड़ें",
+  reviewSubmitted: "✅  आपकी समीक्षा के लिए धन्यवाद! यह हमारी टीम को भेज दी गई है।",
   btnBack: "⬅  वापस",
   btnHome: "🏠  मुख्य मेनू",
   pickGame: "🎮  गेम चुनें",
@@ -734,6 +763,8 @@ const hi: Dict = {
   adminPickPeriodForTestflight: (game) => `${game}\n\nअवधि (वर्शन) चुनें`,
   adminEnterTestflightFor: (game, period, current) =>
     `${game}  •  ${period}\n\nवर्तमान TestFlight लिंक: ${current}\n\nनई TestFlight लिंक भेजें (जैसे \`https://testflight.apple.com/join/XXXXXX\`)। हटाने के लिए \`clear\` भेजें। रद्द करने के लिए /cancel।`,
+  adminEnterTestflightForGame: (game, current) =>
+    `${game}\n\nवर्तमान TestFlight लिंक: ${current}\n\nनई TestFlight लिंक भेजें (जैसे \`https://testflight.apple.com/join/XXXXXX\`)। हटाने के लिए \`clear\` भेजें। रद्द करने के लिए /cancel।`,
   adminCryptoUpdated: "क्रिप्टो वॉलेट अपडेट हुआ।",
   adminUpiUpdated: "UPI ID अपडेट हुआ।",
   adminBinanceUpdated: "Binance ID अपडेट हुआ।",

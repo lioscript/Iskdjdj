@@ -49,11 +49,18 @@ the same Node.js process that runs the small Express API.
     "I have paid" → admin gets the order with Approve / Reject
     buttons → on approve, a key is automatically pulled from
     inventory, hard-deleted from stock, and delivered to the user.
+- **Review system**: Main menu has "⭐ Write a review" button. Flow:
+  star rating (0–5 via inline keyboard) → review text → optional photo
+  → review forwarded to all admins with username, star count, text, and
+  photo (if provided).
 - Admin panel via `/adm`: statistics, prices, add keys (bulk, one per
   line), view/delete keys, set crypto wallet / UPI ID / Binance ID /
   Crypto Pay token / accepted assets list, runtime admin management
   (add by `@username`, view all, remove any non-super admin), and
   **promo code management** (create/list/delete promo codes).
+- **TestFlight links** are stored per game (not per duration). Admin
+  sets one link per game via `/adm` → Settings → TestFlight → pick
+  game. Sent to user after key delivery in `postDelivery` message.
 - **Promo code system**:
   - Stored in `promocodes` table: code (COLLATE NOCASE unique), discount
     percent (1–99), max uses, uses left, created_at.

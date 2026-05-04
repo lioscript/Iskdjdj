@@ -35,9 +35,32 @@ export function mainMenuKb(lang: Lang): InlineKeyboard {
   const tr = t(lang);
   return new InlineKeyboard()
     .text(tr.btnBuy, "buy:games").row()
+    .text(tr.btnReview, "review:start").row()
     .text(tr.btnLanguage, "lang:pick").row()
     .url(tr.btnFeedbacks, "https://t.me/WinStarFeed").row()
     .url(tr.btnSupport, "https://t.me/HermesIX");
+}
+
+export function reviewStarsKb(lang: Lang): InlineKeyboard {
+  const tr = t(lang);
+  const kb = new InlineKeyboard();
+  kb.text("0", "review:stars:0")
+    .text("1 ⭐", "review:stars:1")
+    .text("2 ⭐⭐", "review:stars:2")
+    .row()
+    .text("3 ⭐⭐⭐", "review:stars:3")
+    .text("4 ⭐⭐⭐⭐", "review:stars:4")
+    .text("5 ⭐⭐⭐⭐⭐", "review:stars:5")
+    .row()
+    .text(tr.cancelButton, "nav:home");
+  return kb;
+}
+
+export function reviewSkipPhotoKb(lang: Lang): InlineKeyboard {
+  const tr = t(lang);
+  return new InlineKeyboard()
+    .text(tr.reviewSkipPhoto, "review:skip_photo").row()
+    .text(tr.cancelButton, "nav:home");
 }
 
 // Maps a multi-variant game group to the callback that opens its picker.
@@ -231,7 +254,8 @@ export function adminGamesKb(
   const tr = t(lang);
   const kb = new InlineKeyboard();
   for (const g of GAMES) {
-    kb.text(tr.game[g.id], `adm:${intent}:game:${g.id}`).row();
+    const suffix = intent === "tf" ? (hasTestflightLinkFor(g.id) ? "  ✅" : "  ❌") : "";
+    kb.text(`${tr.game[g.id]}${suffix}`, `adm:${intent}:game:${g.id}`).row();
   }
   kb.text(tr.adminBack, intent === "tf" ? "adm:settings" : "adm:home");
   return kb;
@@ -247,25 +271,21 @@ export function adminPeriodsKb(
   for (const p of PERIODS) {
     let suffix = "";
     if (intent === "price") {
-      // Show both currencies side by side so the admin can see at a
-      // glance which ones are missing.
       const u = getPriceUsd(game, p);
       const i = getPriceInr(game, p);
       const parts: string[] = [];
       if (u !== null) parts.push(fmtUsd(u));
       if (i !== null) parts.push(fmtInr(i));
       suffix = parts.length ? `  —  ${parts.join("  /  ")}` : "";
-    } else if (intent === "tf") {
-      // Show whether a TestFlight link is set for this (game, period)
-      // so the admin can see at a glance which ones still need a link.
-      suffix = hasTestflightLinkFor(game, p) ? "  —  ✅" : "  —  ❌";
     } else {
       const n = countAvailableKeys(game, p);
       suffix = `  —  ${n} in stock`;
     }
     kb.text(`${tr.periodLabel[p]}${suffix}`, `adm:${intent}:period:${game}:${p}`).row();
   }
-  kb.text(tr.adminBack, intent === "tf" ? "adm:settings" : `adm:${intent}`);
+  const backCallback =
+    intent === "price" ? "adm:prices" : `adm:${intent}`;
+  kb.text(tr.adminBack, backCallback);
   return kb;
 }
 
